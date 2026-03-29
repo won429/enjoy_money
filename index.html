@@ -98,9 +98,20 @@
         window.meetingData = null;
         window.currentDuesMonth = new Date().getMonth() + 1;
 
+        window.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('adminAuth') === '0920') {
+                document.getElementById('password-screen').classList.add('hidden');
+                document.getElementById('password-screen').classList.remove('flex');
+                document.getElementById('admin-screen').classList.remove('hidden');
+                document.getElementById('admin-screen').classList.add('flex');
+                window.openAdminModalReal();
+            }
+        });
+
         window.checkPassword = function() {
             const pw = document.getElementById('admin-password-input').value;
             if (pw === '0920') {
+                localStorage.setItem('adminAuth', '0920');
                 document.getElementById('password-screen').classList.add('hidden');
                 document.getElementById('password-screen').classList.remove('flex');
                 document.getElementById('admin-screen').classList.remove('hidden');
