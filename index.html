@@ -239,14 +239,17 @@
 
             if(records && records[idx]) { 
                 const m = records[idx]; 
+                const inputEl = document.getElementById(`edit-amt-${idx}`);
+                let inputAmount = parseInt(inputEl.value);
+
                 if(m.status === 'paid') { 
                     currentBalance -= m.amount;
                     m.status = 'unpaid'; 
                     m.amount = 0; 
                 } else { 
                     m.status = 'paid'; 
-                    m.amount = 20000; 
-                    currentBalance += 20000;
+                    m.amount = (isNaN(inputAmount) || inputAmount === 0) ? 20000 : inputAmount; 
+                    currentBalance += m.amount;
                 } 
                 
                 const row = document.getElementById('admin-member-list').children[idx]; 
@@ -317,6 +320,9 @@
 
             onAuthStateChanged(meetingAuth, (user) => {
                 if (!user) return;
+                
+                let isFirstLoad = true;
+                
                 onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
                     if (docSnap.exists()) { 
                         const data = docSnap.data();
@@ -332,11 +338,18 @@
                             delete data.exemptions['지노'];
                         }
                         window.meetingData = data;
-                        // 화면이 띄워져 있고, 포커스를 잃지 않게 하기 위해 강제 리렌더링은 생략합니다.
-                        // (저장 시 자동으로 DB에서 가져와지므로 안전합니다.)
+                        
+                        // 분리 후 데이터가 화면에 안 뜨는 문제 해결: 처음 진짜 데이터를 수신하면 화면을 새로고침
+                        if (isFirstLoad) {
+                            if (document.getElementById('admin-screen').classList.contains('flex')) {
+                                window.openAdminModalReal();
+                            }
+                            isFirstLoad = false;
+                        }
                     }
                 });
             });
+
         }
 
         window.createCloudBackup = async function() {
