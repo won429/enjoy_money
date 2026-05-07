@@ -74,6 +74,12 @@
                 <input type="number" id="admin-total-balance" class="w-full bg-[#2C2C2E] border border-gray-700 rounded-xl px-4 py-3 font-bold text-lg text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="금액 입력">
             </div>
 
+            <!-- [New] Notice Banner Input -->
+            <div class="mb-6">
+                <label class="block text-xs text-blue-400 font-bold mb-1"><i class="fa-solid fa-bullhorn mr-1"></i>공지사항 배너 (알약 모양)</label>
+                <input type="text" id="admin-notice-input" class="w-full bg-[#2C2C2E] border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="배너에 표시할 문구를 입력하세요 (비우면 숨김)">
+            </div>
+
             <!-- Members -->
             <div class="mb-6">
                 <label class="block text-xs text-gray-400 font-bold mb-2">멤버별 납부 상태</label>
@@ -147,6 +153,9 @@
             
             document.getElementById('admin-month-title').innerText = window.currentDuesMonth; 
             document.getElementById('admin-total-balance').value = window.meetingData.totalBalance || 0; 
+            
+            // [New] 공지사항 배너 데이터 로드
+            document.getElementById('admin-notice-input').value = window.meetingData.notice || '';
             
             const list = document.getElementById('admin-member-list'); 
             list.innerHTML = ''; 
@@ -269,6 +278,9 @@
             
             const bal = parseInt(document.getElementById('admin-total-balance').value) || 0; 
             window.meetingData.totalBalance = bal; 
+            
+            // [New] 공지사항 배너 데이터 저장
+            window.meetingData.notice = document.getElementById('admin-notice-input').value;
             
             const records = window.meetingData.records[window.currentDuesMonth]; 
             if(records) { 
