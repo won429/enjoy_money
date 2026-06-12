@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Enjoy - 회비 관리자</title>
-    
+
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" href="icon.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" type="text/css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
-        body { 
+        body {
             font-family: 'Pretendard', sans-serif;
             background-color: #000000;
             color: #FFFFFF;
@@ -23,14 +23,20 @@
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .scale-in { animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        /* 입력 필드 공통 */
+        .fld { background:#000; border:1px solid #3a3a3c; color:#fff; border-radius:0.6rem; outline:none; transition:border-color .15s; }
+        .fld:focus { border-color:#3182F6; }
+        .sec-label { font-size:11px; font-weight:700; letter-spacing:-0.01em; }
     </style>
 </head>
-<body class="w-full min-h-[100dvh] flex flex-col items-center justify-center p-5 relative">
-    
+<body class="w-full min-h-[100dvh] flex flex-col items-center justify-center p-4 relative">
+
     <!-- Password UI -->
     <div id="password-screen" class="bg-[#1C1C1E] rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center relative border border-white/5 flex flex-col scale-in z-10">
-        <h3 class="text-lg font-bold text-[#F2F4F6] mb-4">관리자 비밀번호</h3>
-        <input type="password" id="admin-password-input" class="w-full bg-[#2C2C2E] border border-gray-700 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-center text-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="비밀번호 4자리" maxlength="4">
+        <div class="w-14 h-14 rounded-2xl bg-blue-500/15 text-blue-400 flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-lock"></i></div>
+        <h3 class="text-lg font-bold text-[#F2F4F6] mb-1">관리자 인증</h3>
+        <p class="text-xs text-gray-500 mb-4">비밀번호 4자리를 입력하세요</p>
+        <input type="password" id="admin-password-input" onkeydown="if(event.key==='Enter')window.checkPassword()" class="w-full bg-[#2C2C2E] border border-gray-700 text-white placeholder-gray-500 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] mb-4 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="••••" maxlength="4">
         <div class="flex gap-2">
             <button onclick="window.location.href='index.html'" class="flex-1 bg-[#2C2C2E] text-gray-400 font-bold py-3 rounded-xl active:bg-gray-700 transition-colors">돌아가기</button>
             <button onclick="window.checkPassword()" class="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-600 active:bg-blue-700 transition-colors">확인</button>
@@ -38,64 +44,93 @@
     </div>
 
     <!-- Admin UI (Hidden initially) -->
-    <div id="admin-screen" class="hidden bg-[#1C1C1E] rounded-3xl p-6 w-full max-w-sm shadow-2xl relative overflow-hidden flex-col border border-white/5 h-[85vh] max-h-[800px] scale-in z-10">
-        <div class="flex justify-between items-center mb-4 shrink-0">
-            <h3 class="text-lg font-bold text-[#F2F4F6] flex items-center gap-2">
-                <button onclick="window.changeAdminMonth(-1)" class="text-gray-500 hover:text-white px-1.5 active:scale-90"><i class="fa-solid fa-chevron-left text-sm"></i></button>
-                회비 관리 (<span id="admin-month-title"></span>월)
-                <button onclick="window.changeAdminMonth(1)" class="text-gray-500 hover:text-white px-1.5 active:scale-90"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+    <div id="admin-screen" class="hidden bg-[#1C1C1E] rounded-3xl p-5 w-full max-w-sm shadow-2xl relative overflow-hidden flex-col border border-white/5 h-[88vh] max-h-[820px] scale-in z-10">
+
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-3 shrink-0">
+            <h3 class="text-[17px] font-bold text-[#F2F4F6] flex items-center gap-2">
+                <span class="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center text-[13px]"><i class="fa-solid fa-wallet"></i></span>
+                회비 관리자
             </h3>
-            <button onclick="window.location.href='index.html'" class="text-gray-500 hover:text-gray-300 active:scale-90 transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <button onclick="window.location.href='index.html'" class="w-8 h-8 rounded-lg bg-[#2C2C2E] text-gray-400 hover:text-white active:scale-90 transition-all flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        
+
+        <!-- Tab bar (segmented control) -->
+        <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0">
+            <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-1 text-[11px]"></i>납부현황</button>
+            <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-receipt mr-1 text-[11px]"></i>사용내역</button>
+            <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-1 text-[11px]"></i>설정</button>
+        </div>
+
+        <!-- Content -->
         <div class="overflow-y-auto flex-1 pr-1 scrollbar-hide">
-            <!-- Backup -->
-            <div class="mb-6 bg-blue-900/20 p-3 rounded-xl border border-blue-900/50">
-                <label class="block text-xs text-blue-400 font-bold mb-2">☁️ 클라우드 백업 (서버 저장)</label>
-                <div class="flex gap-2 mb-2">
-                    <button onclick="window.createCloudBackup()" class="flex-1 bg-transparent border border-blue-500/50 text-blue-400 font-bold py-2 rounded-lg text-xs shadow-sm hover:bg-blue-500/10 active:bg-blue-500/20 transition-colors">
+
+            <!-- ===== 납부현황 탭 ===== -->
+            <div id="tab-dues" class="admin-tab-panel">
+                <!-- 월 선택 -->
+                <div class="flex items-center justify-between bg-[#2C2C2E] rounded-xl p-1 mb-5">
+                    <button onclick="window.changeAdminMonth(-1)" class="w-9 h-9 rounded-lg text-gray-400 hover:text-white active:scale-90 transition-all flex items-center justify-center"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+                    <span class="font-bold text-[15px] text-[#F2F4F6]"><span id="admin-month-title"></span>월 납부 현황</span>
+                    <button onclick="window.changeAdminMonth(1)" class="w-9 h-9 rounded-lg text-gray-400 hover:text-white active:scale-90 transition-all flex items-center justify-center"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+                </div>
+
+                <!-- 총 잔액 -->
+                <div class="mb-5">
+                    <label class="sec-label text-gray-400 block mb-1.5">총 회비 잔액</label>
+                    <div class="relative">
+                        <input type="number" id="admin-total-balance" class="fld w-full px-4 py-3 pr-9 font-bold text-lg text-right" placeholder="금액 입력">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">원</span>
+                    </div>
+                </div>
+
+                <!-- 멤버별 납부 -->
+                <div class="mb-5">
+                    <label class="sec-label text-gray-400 block mb-2">멤버별 납부 상태</label>
+                    <div id="admin-member-list" class="space-y-2"></div>
+                </div>
+
+                <!-- 면제권 -->
+                <div class="mb-2">
+                    <label class="sec-label text-emerald-400 block mb-2"><i class="fa-solid fa-ticket-simple mr-1"></i>면제권 관리</label>
+                    <div id="admin-ticket-list" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- ===== 사용내역 탭 ===== -->
+            <div id="tab-expense" class="admin-tab-panel hidden">
+                <button onclick="window.addExpense()" class="w-full mb-3 bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold py-2.5 rounded-xl text-sm active:scale-[0.98] transition-transform"><i class="fa-solid fa-plus mr-1.5"></i>내역 추가</button>
+                <div id="admin-expense-summary" class="text-[11px] text-gray-500 mb-3 px-1 leading-relaxed"></div>
+                <div id="admin-expense-list" class="space-y-2.5"></div>
+            </div>
+
+            <!-- ===== 설정 탭 ===== -->
+            <div id="tab-settings" class="admin-tab-panel hidden">
+                <!-- 공지 배너 -->
+                <div class="mb-5">
+                    <label class="sec-label text-blue-400 block mb-1.5"><i class="fa-solid fa-bullhorn mr-1"></i>공지사항 배너 (알약 모양)</label>
+                    <input type="text" id="admin-notice-input" class="fld w-full px-4 py-3 text-sm" placeholder="배너 문구 입력 (비우면 숨김)">
+                </div>
+
+                <!-- 클라우드 백업 -->
+                <div class="bg-blue-900/15 p-3.5 rounded-xl border border-blue-900/40">
+                    <label class="block sec-label text-blue-400 mb-2.5">☁️ 클라우드 백업 (서버 저장)</label>
+                    <button onclick="window.createCloudBackup()" class="w-full bg-transparent border border-blue-500/50 text-blue-400 font-bold py-2.5 rounded-lg text-xs shadow-sm hover:bg-blue-500/10 active:bg-blue-500/20 transition-colors mb-2.5">
                         <i class="fa-solid fa-cloud-arrow-up mr-1"></i> 현재 상태 저장
                     </button>
-                </div>
-                <div class="relative">
-                    <select id="backup-select" class="w-full bg-[#2C2C2E] border border-gray-700 text-white text-xs rounded-lg p-2 mb-2 h-9 focus:ring-1 focus:ring-blue-500 outline-none transition-colors">
+                    <select id="backup-select" class="fld w-full text-xs p-2 mb-2 h-9">
                         <option value="">백업 기록을 불러오는 중...</option>
                     </select>
-                    <button onclick="window.restoreCloudBackup()" class="w-full bg-red-900/20 text-red-400 border border-red-900/50 font-bold py-2 rounded-lg text-xs shadow-sm hover:bg-red-900/40 active:bg-red-900/60 transition-colors">
+                    <button onclick="window.restoreCloudBackup()" class="w-full bg-red-900/20 text-red-400 border border-red-900/50 font-bold py-2.5 rounded-lg text-xs shadow-sm hover:bg-red-900/40 active:bg-red-900/60 transition-colors">
                         <i class="fa-solid fa-clock-rotate-left mr-1"></i> 선택한 날짜로 되돌리기
                     </button>
+                    <p class="text-[10px] text-gray-400 mt-2 leading-snug">* '현재 상태 저장'을 누르면 서버에 보관됩니다. 문제가 생기면 목록에서 선택해 되돌리세요.</p>
                 </div>
-                <p class="text-[10px] text-gray-400 mt-1.5 leading-snug">* '현재 상태 저장'을 누르면 서버에 안전하게 보관됩니다. 문제가 생기면 목록에서 선택해 되돌리세요.</p>
-            </div>
-
-            <!-- Total -->
-            <div class="mb-6">
-                <label class="block text-xs text-gray-400 font-bold mb-1">총 회비 잔액</label>
-                <input type="number" id="admin-total-balance" class="w-full bg-[#2C2C2E] border border-gray-700 rounded-xl px-4 py-3 font-bold text-lg text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="금액 입력">
-            </div>
-
-            <!-- [New] Notice Banner Input -->
-            <div class="mb-6">
-                <label class="block text-xs text-blue-400 font-bold mb-1"><i class="fa-solid fa-bullhorn mr-1"></i>공지사항 배너 (알약 모양)</label>
-                <input type="text" id="admin-notice-input" class="w-full bg-[#2C2C2E] border border-gray-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="배너에 표시할 문구를 입력하세요 (비우면 숨김)">
-            </div>
-
-            <!-- Members -->
-            <div class="mb-6">
-                <label class="block text-xs text-gray-400 font-bold mb-2">멤버별 납부 상태</label>
-                <div id="admin-member-list" class="space-y-2"></div>
-            </div>
-
-            <!-- Exemptions -->
-            <div class="mb-4">
-                <label class="block text-xs text-emerald-400 font-bold mb-2">면제권 관리</label>
-                <div id="admin-ticket-list" class="space-y-2"></div>
             </div>
         </div>
 
         <!-- Save -->
         <div class="mt-4 pt-4 border-t border-gray-800 shrink-0">
-            <button onclick="window.saveAdminData()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-blue-700 transition-colors">저장하기</button>
+            <button onclick="window.saveAdminData()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-blue-700 transition-colors"><i class="fa-solid fa-floppy-disk mr-1.5"></i>전체 저장하기</button>
         </div>
     </div>
 
@@ -103,6 +138,10 @@
     <script>
         window.meetingData = null;
         window.currentDuesMonth = new Date().getMonth() + 1;
+        window.adminActiveTab = 'dues';
+
+        const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
+        const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('adminAuth') === '0920') {
@@ -128,18 +167,35 @@
             }
         };
 
-        function createEmptyMonthData() { 
-            const members = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제']; 
-            return members.map(name => ({ name: name, status: 'unpaid', amount: 0, isLeader: name === '전시기' })); 
+        function createEmptyMonthData() {
+            return ADMIN_MEMBERS.map(name => ({ name: name, status: 'unpaid', amount: 0, isLeader: name === '전시기' }));
         }
 
-        function getInitialMeetingData() { 
-            return { 
-                totalBalance: 448999, 
+        function getInitialMeetingData() {
+            return {
+                totalBalance: 448999,
                 exemptions: { '류짱': 1, '성원제': 1, '전시기': 1 },
-                records: {} 
-            }; 
+                records: {},
+                expenses: []
+            };
         }
+
+        // 탭 전환
+        window.switchAdminTab = function(name) {
+            // 사용내역 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
+            try { window.collectExpenses(); } catch (e) {}
+            window.adminActiveTab = name;
+            ['dues', 'expense', 'settings'].forEach(t => {
+                const panel = document.getElementById('tab-' + t);
+                if (panel) panel.classList.toggle('hidden', t !== name);
+            });
+            document.querySelectorAll('.admin-tab').forEach(btn => {
+                const active = btn.getAttribute('data-tab') === name;
+                btn.classList.toggle('bg-blue-500', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('text-gray-400', !active);
+            });
+        };
 
         window.changeAdminMonth = function(delta) {
             window.currentDuesMonth += delta;
@@ -148,46 +204,47 @@
             window.openAdminModalReal();
         };
 
-        window.openAdminModalReal = function() { 
-            if (!window.meetingData) window.meetingData = getInitialMeetingData(); 
-            
-            document.getElementById('admin-month-title').innerText = window.currentDuesMonth; 
-            document.getElementById('admin-total-balance').value = window.meetingData.totalBalance || 0; 
-            
-            // [New] 공지사항 배너 데이터 로드
+        window.openAdminModalReal = function() {
+            if (!window.meetingData) window.meetingData = getInitialMeetingData();
+            if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
+
+            document.getElementById('admin-month-title').innerText = window.currentDuesMonth;
+            document.getElementById('admin-total-balance').value = window.meetingData.totalBalance || 0;
             document.getElementById('admin-notice-input').value = window.meetingData.notice || '';
-            
-            const list = document.getElementById('admin-member-list'); 
-            list.innerHTML = ''; 
-            
+
+            // 멤버별 납부
+            const list = document.getElementById('admin-member-list');
+            list.innerHTML = '';
+            if (!window.meetingData.records) window.meetingData.records = {};
             if (!window.meetingData.records[window.currentDuesMonth]) {
-                window.meetingData.records[window.currentDuesMonth] = createEmptyMonthData(); 
+                window.meetingData.records[window.currentDuesMonth] = createEmptyMonthData();
             }
-            
-            const records = window.meetingData.records[window.currentDuesMonth]; 
-            records.forEach((m, i) => { 
-                const isPaid = m.status === 'paid'; 
+            const records = window.meetingData.records[window.currentDuesMonth];
+            records.forEach((m, i) => {
+                const isPaid = m.status === 'paid';
                 const isDeferred = m.status === 'deferred';
                 list.innerHTML += `
                 <div class="flex items-center justify-between p-3 bg-[#2C2C2E] rounded-xl border border-gray-700">
                     <span class="font-bold text-sm text-[#F2F4F6]">${m.name}</span>
                     <div class="flex items-center gap-2">
-                        <input type="number" id="edit-amt-${i}" class="w-16 text-right text-xs p-1 border border-gray-600 bg-black text-white rounded" value="${m.amount}">
+                        <div class="relative">
+                            <input type="number" id="edit-amt-${i}" class="w-20 text-right text-xs p-1.5 pr-5 border border-gray-600 bg-black text-white rounded-lg outline-none focus:border-blue-500" value="${m.amount}">
+                            <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-600 text-[10px]">원</span>
+                        </div>
                         <button onclick="window.toggleDeferred(${i})" class="text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${isDeferred ? 'bg-amber-900/30 text-amber-400' : 'bg-[#3C3C3E] text-gray-400'}">유예</button>
                         <button onclick="window.togglePay(${i})" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isPaid ? 'bg-blue-900/30 text-blue-400' : (isDeferred ? 'bg-gray-800 text-gray-500' : 'bg-red-900/30 text-red-400')}">${isPaid ? '납부' : '미납'}</button>
                     </div>
-                </div>`; 
-            }); 
-            
-            const ticketList = document.getElementById('admin-ticket-list'); 
+                </div>`;
+            });
+
+            // 면제권
+            const ticketList = document.getElementById('admin-ticket-list');
             ticketList.innerHTML = '';
-            const members = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
             const exemptions = window.meetingData.exemptions || { '류짱': 1, '성원제': 1, '전시기': 1 };
-            
-            members.forEach((name, i) => {
+            ADMIN_MEMBERS.forEach((name) => {
                 const count = exemptions[name] || 0;
                 ticketList.innerHTML += `
-                <div class="flex items-center justify-between p-3 bg-emerald-900/20 rounded-xl border border-emerald-900/30">
+                <div class="flex items-center justify-between p-3 bg-emerald-900/15 rounded-xl border border-emerald-900/30">
                     <span class="font-bold text-sm text-[#F2F4F6]">${name}</span>
                     <div class="flex items-center gap-2">
                         <button onclick="window.updateExemption('${name}', -1)" class="w-7 h-7 rounded-full bg-[#3C3C3E] text-emerald-400 flex items-center justify-center font-bold shadow-sm active:scale-90 transition-transform">-</button>
@@ -196,109 +253,185 @@
                     </div>
                 </div>`;
             });
-            
-            if(window.fetchBackupList) window.fetchBackupList();
+
+            // 사용 내역
+            window.renderExpenseList();
+
+            // 현재 탭 상태 유지
+            window.switchAdminTab(window.adminActiveTab || 'dues');
+
+            if (window.fetchBackupList) window.fetchBackupList();
         };
 
         window.updateExemption = function(name, delta) {
             const el = document.getElementById(`admin-ticket-${name}`);
             let val = parseInt(el.innerText);
             val += delta;
-            if(val < 0) val = 0;
+            if (val < 0) val = 0;
             el.innerText = val;
-            
-            if(!window.meetingData.exemptions) window.meetingData.exemptions = { '류짱': 1, '성원제': 1, '전시기': 1 };
+            if (!window.meetingData.exemptions) window.meetingData.exemptions = { '류짱': 1, '성원제': 1, '전시기': 1 };
             window.meetingData.exemptions[name] = val;
-        }
+        };
 
         window.toggleDeferred = function(idx) {
             const records = window.meetingData.records[window.currentDuesMonth];
             const totalBalanceInput = document.getElementById('admin-total-balance');
             let currentBalance = parseInt(totalBalanceInput.value) || 0;
 
-            if(records && records[idx]) {
+            if (records && records[idx]) {
                 const m = records[idx];
-                if(m.status === 'deferred') {
+                if (m.status === 'deferred') {
                     m.status = 'unpaid';
                     m.amount = 0;
                 } else {
-                    if(m.status === 'paid') {
-                        currentBalance -= m.amount;
-                    }
+                    if (m.status === 'paid') currentBalance -= m.amount;
                     m.status = 'deferred';
                     m.amount = 0;
                 }
-
                 const row = document.getElementById('admin-member-list').children[idx];
                 row.querySelector('input').value = m.amount;
                 const btns = row.querySelectorAll('button');
                 btns[0].className = `text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${m.status === 'deferred' ? 'bg-amber-900/30 text-amber-400' : 'bg-[#3C3C3E] text-gray-400'}`;
                 btns[1].className = `text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${m.status === 'deferred' ? 'bg-gray-800 text-gray-500' : 'bg-red-900/30 text-red-400'}`;
                 btns[1].innerText = '미납';
-
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
             }
         };
 
-        window.togglePay = function(idx) { 
-            const records = window.meetingData.records[window.currentDuesMonth]; 
+        window.togglePay = function(idx) {
+            const records = window.meetingData.records[window.currentDuesMonth];
             const totalBalanceInput = document.getElementById('admin-total-balance');
             let currentBalance = parseInt(totalBalanceInput.value) || 0;
 
-            if(records && records[idx]) { 
-                const m = records[idx]; 
+            if (records && records[idx]) {
+                const m = records[idx];
                 const inputEl = document.getElementById(`edit-amt-${idx}`);
                 let inputAmount = parseInt(inputEl.value);
 
-                if(m.status === 'paid') { 
+                if (m.status === 'paid') {
                     currentBalance -= m.amount;
-                    m.status = 'unpaid'; 
-                    m.amount = 0; 
-                } else { 
-                    m.status = 'paid'; 
-                    m.amount = (isNaN(inputAmount) || inputAmount === 0) ? 20000 : inputAmount; 
+                    m.status = 'unpaid';
+                    m.amount = 0;
+                } else {
+                    m.status = 'paid';
+                    m.amount = (isNaN(inputAmount) || inputAmount === 0) ? 20000 : inputAmount;
                     currentBalance += m.amount;
-                } 
-                
-                const row = document.getElementById('admin-member-list').children[idx]; 
-                row.querySelector('input').value = m.amount; 
+                }
+                const row = document.getElementById('admin-member-list').children[idx];
+                row.querySelector('input').value = m.amount;
                 const btns = row.querySelectorAll('button');
                 btns[0].className = 'text-xs font-bold px-2 py-1.5 rounded-lg transition-colors bg-[#3C3C3E] text-gray-400';
-                btns[1].className = `text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${m.status === 'paid' ? 'bg-blue-900/30 text-blue-400' : 'bg-red-900/30 text-red-400'}`; 
-                btns[1].innerText = m.status === 'paid' ? '납부' : '미납'; 
-                
+                btns[1].className = `text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${m.status === 'paid' ? 'bg-blue-900/30 text-blue-400' : 'bg-red-900/30 text-red-400'}`;
+                btns[1].innerText = m.status === 'paid' ? '납부' : '미납';
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
-            } 
+            }
         };
 
-        window.saveAdminData = async function() { 
-            if (!window.meetingData || !window.meetingDb) { alert("DB 연결 중..."); return; } 
-            
-            const bal = parseInt(document.getElementById('admin-total-balance').value) || 0; 
-            window.meetingData.totalBalance = bal; 
-            
-            // [New] 공지사항 배너 데이터 저장
-            window.meetingData.notice = document.getElementById('admin-notice-input').value;
-            
-            const records = window.meetingData.records[window.currentDuesMonth]; 
-            if(records) { 
-                records.forEach((m, i) => { 
-                    const val = document.getElementById(`edit-amt-${i}`).value; 
-                    m.amount = parseInt(val) || 0; 
-                }); 
-            } 
-            
-            if(!window.meetingData.exemptions) window.meetingData.exemptions = { '류짱': 1, '성원제': 1, '전시기': 1 };
+        /* ===== 사용 내역(지출/입금) 관리 ===== */
+        window.renderExpenseList = function() {
+            const wrap = document.getElementById('admin-expense-list');
+            const sumEl = document.getElementById('admin-expense-summary');
+            if (!wrap) return;
+            if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
+            const exps = window.meetingData.expenses;
 
-            try { 
-                await window.setDoc(window.doc(window.meetingDb, ...window.MEETING_PATH), window.meetingData); 
-                alert('저장 완료! ✅'); 
-            } catch (e) { 
-                console.error(e); 
-                alert('저장 실패'); 
-            } 
+            // 요약
+            const isInc = (e) => (e.type === 'income' || e.type === '입금');
+            const totalExp = exps.filter(e => !isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
+            const totalInc = exps.filter(e => isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
+            if (sumEl) sumEl.innerHTML = `총 ${exps.length}건 · 지출 <span class="text-red-400 font-bold">${totalExp.toLocaleString()}원</span> · 입금 <span class="text-blue-400 font-bold">${totalInc.toLocaleString()}원</span>`;
+
+            if (exps.length === 0) {
+                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">등록된 사용 내역이 없습니다.<br>위 <span class="text-blue-400 font-bold">내역 추가</span> 버튼으로 추가하세요.</div>`;
+                return;
+            }
+
+            wrap.innerHTML = exps.map((e, i) => {
+                const income = isInc(e);
+                return `
+                <div class="bg-[#2C2C2E] rounded-xl p-3 border border-gray-700 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <button onclick="window.toggleExpenseType(${i})" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0 ${income ? 'bg-blue-900/30 text-blue-400' : 'bg-red-900/30 text-red-400'}">${income ? '입금' : '지출'}</button>
+                        <input type="date" id="exp-date-${i}" value="${escAttr(e.date)}" class="fld flex-1 text-xs px-2 py-1.5">
+                        <button onclick="window.removeExpense(${i})" class="w-8 h-8 rounded-lg bg-[#3C3C3E] text-red-400 flex items-center justify-center active:scale-90 transition-transform shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                    <input type="text" id="exp-title-${i}" value="${escAttr(e.title)}" placeholder="내역 (예: 정기모임 회식비)" class="fld w-full text-sm px-3 py-2">
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <input type="number" id="exp-amount-${i}" value="${Number(e.amount) || 0}" placeholder="금액" class="fld w-full text-sm pl-3 pr-7 py-2 text-right">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">원</span>
+                        </div>
+                        <input type="text" id="exp-memo-${i}" value="${escAttr(e.memo)}" placeholder="메모 (선택)" class="fld flex-1 text-sm px-3 py-2">
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        // 화면의 입력값을 데이터로 수집 (저장/추가/삭제/전환 전에 호출)
+        window.collectExpenses = function() {
+            if (!window.meetingData || !Array.isArray(window.meetingData.expenses)) return;
+            window.meetingData.expenses.forEach((e, i) => {
+                const d = document.getElementById(`exp-date-${i}`); if (d) e.date = d.value;
+                const t = document.getElementById(`exp-title-${i}`); if (t) e.title = t.value;
+                const a = document.getElementById(`exp-amount-${i}`); if (a) e.amount = parseInt(a.value) || 0;
+                const mo = document.getElementById(`exp-memo-${i}`); if (mo) e.memo = mo.value;
+            });
+        };
+
+        window.addExpense = function() {
+            if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
+            window.collectExpenses();
+            const today = new Date().toISOString().slice(0, 10);
+            window.meetingData.expenses.unshift({ date: today, title: '', amount: 0, type: 'expense', memo: '' });
+            window.renderExpenseList();
+        };
+
+        window.removeExpense = function(i) {
+            window.collectExpenses();
+            window.meetingData.expenses.splice(i, 1);
+            window.renderExpenseList();
+        };
+
+        window.toggleExpenseType = function(i) {
+            window.collectExpenses();
+            const e = window.meetingData.expenses[i];
+            e.type = (e.type === 'income' || e.type === '입금') ? 'expense' : 'income';
+            window.renderExpenseList();
+        };
+
+        window.saveAdminData = async function() {
+            if (!window.meetingData || !window.meetingDb) { alert("DB 연결 중..."); return; }
+
+            const bal = parseInt(document.getElementById('admin-total-balance').value) || 0;
+            window.meetingData.totalBalance = bal;
+            window.meetingData.notice = document.getElementById('admin-notice-input').value;
+
+            const records = window.meetingData.records[window.currentDuesMonth];
+            if (records) {
+                records.forEach((m, i) => {
+                    const el = document.getElementById(`edit-amt-${i}`);
+                    if (el) m.amount = parseInt(el.value) || 0;
+                });
+            }
+
+            if (!window.meetingData.exemptions) window.meetingData.exemptions = { '류짱': 1, '성원제': 1, '전시기': 1 };
+
+            // 사용 내역 입력값 수집 (빈 내역은 저장 안 함)
+            window.collectExpenses();
+            if (Array.isArray(window.meetingData.expenses)) {
+                window.meetingData.expenses = window.meetingData.expenses.filter(e => (e.title && e.title.trim() !== '') || (Number(e.amount) || 0) !== 0);
+            }
+
+            try {
+                await window.setDoc(window.doc(window.meetingDb, ...window.MEETING_PATH), window.meetingData);
+                alert('저장 완료! ✅');
+                window.renderExpenseList();
+            } catch (e) {
+                console.error(e);
+                alert('저장 실패');
+            }
         };
     </script>
 
@@ -309,7 +442,7 @@
         import { getFirestore, doc, onSnapshot, setDoc, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
-        window.BACKUP_PATH = ['meeting_account', 'backups', 'history']; 
+        window.BACKUP_PATH = ['meeting_account', 'backups', 'history'];
         window.doc = doc;
         window.setDoc = setDoc;
 
@@ -332,11 +465,11 @@
 
             onAuthStateChanged(meetingAuth, (user) => {
                 if (!user) return;
-                
+
                 let isFirstLoad = true;
-                
+
                 onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
-                    if (docSnap.exists()) { 
+                    if (docSnap.exists()) {
                         const data = docSnap.data();
                         if (data.records) {
                             Object.keys(data.records).forEach(month => {
@@ -349,9 +482,10 @@
                             data.exemptions['이진누'] = (data.exemptions['이진누'] || 0) + data.exemptions['지노'];
                             delete data.exemptions['지노'];
                         }
+                        if (!Array.isArray(data.expenses)) data.expenses = [];
                         window.meetingData = data;
-                        
-                        // 분리 후 데이터가 화면에 안 뜨는 문제 해결: 처음 진짜 데이터를 수신하면 화면을 새로고침
+
+                        // 처음 진짜 데이터를 수신하면 화면 새로고침
                         if (isFirstLoad) {
                             if (document.getElementById('admin-screen').classList.contains('flex')) {
                                 window.openAdminModalReal();
@@ -361,14 +495,11 @@
                     }
                 });
             });
-
         }
 
         window.createCloudBackup = async function() {
             if (!window.meetingData || !window.meetingDb) { alert("저장할 데이터가 없습니다."); return; }
-            const confirmSave = confirm("현재 상태를 서버에 백업하시겠습니까?");
-            if (!confirmSave) return;
-
+            if (!confirm("현재 상태를 서버에 백업하시겠습니까?")) return;
             try {
                 const backupData = { ...window.meetingData, savedAt: new Date().toISOString() };
                 await addDoc(collection(window.meetingDb, ...window.BACKUP_PATH), backupData);
@@ -383,24 +514,20 @@
         window.fetchBackupList = async function() {
             if (!window.meetingDb) return;
             const selectEl = document.getElementById('backup-select');
-            if(!selectEl) return;
+            if (!selectEl) return;
             selectEl.innerHTML = '<option>불러오는 중...</option>';
-
             try {
                 const q = query(collection(window.meetingDb, ...window.BACKUP_PATH), orderBy('savedAt', 'desc'), limit(5));
                 const querySnapshot = await getDocs(q);
-                
                 selectEl.innerHTML = '';
                 if (querySnapshot.empty) {
                     selectEl.innerHTML = '<option value="">저장된 백업이 없습니다.</option>';
                     return;
                 }
-
                 querySnapshot.forEach((d) => {
                     const data = d.data();
                     const date = new Date(data.savedAt);
-                    const label = `${date.getMonth()+1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')} 저장됨`;
-                    
+                    const label = `${date.getMonth() + 1}월 ${date.getDate()}일 ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')} 저장됨`;
                     const option = document.createElement('option');
                     option.value = d.id;
                     option.innerText = label;
@@ -416,21 +543,13 @@
             const selectEl = document.getElementById('backup-select');
             const docId = selectEl.value;
             if (!docId) { alert("복원할 백업을 선택해주세요."); return; }
-
             if (!confirm("⚠️ 정말 이 시점으로 되돌리시겠습니까?\n현재 데이터는 사라지고 선택한 백업으로 덮어씌워집니다.")) return;
-
             try {
                 const backupDocRef = doc(window.meetingDb, ...window.BACKUP_PATH, docId);
                 const backupSnap = await getDoc(backupDocRef);
-
-                if (!backupSnap.exists()) {
-                    alert("백업 데이터를 찾을 수 없습니다.");
-                    return;
-                }
-
+                if (!backupSnap.exists()) { alert("백업 데이터를 찾을 수 없습니다."); return; }
                 const backupData = backupSnap.data();
                 delete backupData.savedAt;
-
                 await setDoc(doc(window.meetingDb, ...window.MEETING_PATH), backupData);
                 alert("✅ 복원 완료! 데이터가 성공적으로 되돌려졌습니다.");
                 window.openAdminModalReal();
