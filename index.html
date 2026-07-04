@@ -223,16 +223,18 @@
             records.forEach((m, i) => {
                 const isPaid = m.status === 'paid';
                 const isDeferred = m.status === 'deferred';
+                const isStopped = m.status === 'stopped';
                 list.innerHTML += `
                 <div class="flex items-center justify-between p-3 bg-[#2C2C2E] rounded-xl border border-gray-700">
                     <span class="font-bold text-sm text-[#F2F4F6]">${m.name}</span>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1">
                         <div class="relative">
-                            <input type="number" id="edit-amt-${i}" class="w-20 text-right text-xs p-1.5 pr-5 border border-gray-600 bg-black text-white rounded-lg outline-none focus:border-blue-500" value="${m.amount}">
+                            <input type="number" id="edit-amt-${i}" class="w-[68px] text-right text-xs p-1.5 pr-5 border border-gray-600 bg-black text-white rounded-lg outline-none focus:border-blue-500 disabled:opacity-40" value="${m.amount}" ${isStopped ? 'disabled' : ''}>
                             <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-600 text-[10px]">원</span>
                         </div>
+                        <button onclick="window.toggleStopped(${i})" class="text-[11px] font-bold px-2 py-1.5 rounded-lg transition-colors ${isStopped ? 'bg-violet-900/40 text-violet-400' : 'bg-[#3C3C3E] text-gray-400'}">중단</button>
                         <button onclick="window.toggleDeferred(${i})" class="text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${isDeferred ? 'bg-amber-900/30 text-amber-400' : 'bg-[#3C3C3E] text-gray-400'}">유예</button>
-                        <button onclick="window.togglePay(${i})" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isPaid ? 'bg-blue-900/30 text-blue-400' : (isDeferred ? 'bg-gray-800 text-gray-500' : 'bg-red-900/30 text-red-400')}">${isPaid ? '납부' : '미납'}</button>
+                        <button onclick="window.togglePay(${i})" class="text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${isPaid ? 'bg-blue-900/30 text-blue-400' : ((isDeferred || isStopped) ? 'bg-gray-800 text-gray-500' : 'bg-red-900/30 text-red-400')}">${isPaid ? '납부' : '미납'}</button>
                     </div>
                 </div>`;
             });
@@ -273,6 +275,26 @@
             window.meetingData.exemptions[name] = val;
         };
 
+        window.toggleStopped = function(idx) {
+            const records = window.meetingData.records[window.currentDuesMonth];
+            const totalBalanceInput = document.getElementById('admin-total-balance');
+            let currentBalance = parseInt(totalBalanceInput.value) || 0;
+
+            if (records && records[idx]) {
+                const m = records[idx];
+                if (m.status === 'stopped') {
+                    m.status = 'unpaid';
+                } else {
+                    if (m.status === 'paid') currentBalance -= m.amount;
+                    m.status = 'stopped';
+                }
+                m.amount = 0;
+                totalBalanceInput.value = currentBalance;
+                window.meetingData.totalBalance = currentBalance;
+                window.openAdminModalReal();
+            }
+        };
+
         window.toggleDeferred = function(idx) {
             const records = window.meetingData.records[window.currentDuesMonth];
             const totalBalanceInput = document.getElementById('admin-total-balance');
@@ -288,14 +310,9 @@
                     m.status = 'deferred';
                     m.amount = 0;
                 }
-                const row = document.getElementById('admin-member-list').children[idx];
-                row.querySelector('input').value = m.amount;
-                const btns = row.querySelectorAll('button');
-                btns[0].className = `text-xs font-bold px-2 py-1.5 rounded-lg transition-colors ${m.status === 'deferred' ? 'bg-amber-900/30 text-amber-400' : 'bg-[#3C3C3E] text-gray-400'}`;
-                btns[1].className = `text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${m.status === 'deferred' ? 'bg-gray-800 text-gray-500' : 'bg-red-900/30 text-red-400'}`;
-                btns[1].innerText = '미납';
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
+                window.openAdminModalReal();
             }
         };
 
@@ -318,14 +335,9 @@
                     m.amount = (isNaN(inputAmount) || inputAmount === 0) ? 20000 : inputAmount;
                     currentBalance += m.amount;
                 }
-                const row = document.getElementById('admin-member-list').children[idx];
-                row.querySelector('input').value = m.amount;
-                const btns = row.querySelectorAll('button');
-                btns[0].className = 'text-xs font-bold px-2 py-1.5 rounded-lg transition-colors bg-[#3C3C3E] text-gray-400';
-                btns[1].className = `text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${m.status === 'paid' ? 'bg-blue-900/30 text-blue-400' : 'bg-red-900/30 text-red-400'}`;
-                btns[1].innerText = m.status === 'paid' ? '납부' : '미납';
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
+                window.openAdminModalReal();
             }
         };
 
