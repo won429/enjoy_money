@@ -494,11 +494,11 @@
             const selectedEntries = scoped.map(item => item.entry);
             const totalExp = selectedEntries.filter(e => !isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
             const totalInc = selectedEntries.filter(e => isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
-            const net = totalInc - totalExp;
+            const currentBalance = Math.max(0, Number(window.meetingData.totalBalance) || 0);
             if (sumEl) sumEl.innerHTML = `
                 <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">지출 · ${selectedEntries.filter(e => !isInc(e)).length}건</span><strong class="block text-[13px] text-red-400 mt-1">${totalExp.toLocaleString()}원</strong></div>
                 <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">입금 · ${selectedEntries.filter(isInc).length}건</span><strong class="block text-[13px] text-blue-400 mt-1">${totalInc.toLocaleString()}원</strong></div>
-                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">차액</span><strong class="block text-[13px] ${net >= 0 ? 'text-blue-400' : 'text-red-400'} mt-1">${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString()}원</strong></div>`;
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">현재 잔액</span><strong class="block text-[13px] text-emerald-400 mt-1">${currentBalance.toLocaleString()}원</strong></div>`;
 
             if (!selectedMeeting) {
                 wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">일정에 정기모임을 먼저 등록하면<br>모임별 가계부를 관리할 수 있습니다.</div>`;
