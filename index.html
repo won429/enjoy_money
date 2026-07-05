@@ -27,6 +27,9 @@
         .fld { background:#000; border:1px solid #3a3a3c; color:#fff; border-radius:0.6rem; outline:none; transition:border-color .15s; }
         .fld:focus { border-color:#3182F6; }
         .sec-label { font-size:11px; font-weight:700; letter-spacing:-0.01em; }
+        .ledger-summary-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:11px 12px; }
+        input[type="date"] { color-scheme:dark; min-width:0; }
+        input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
     </style>
 </head>
 <body class="w-full min-h-[100dvh] flex flex-col items-center justify-center p-4 relative">
@@ -52,13 +55,18 @@
                 <span class="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center text-[13px]"><i class="fa-solid fa-wallet"></i></span>
                 회비 관리자
             </h3>
-            <button onclick="window.location.href='index.html'" class="w-8 h-8 rounded-lg bg-[#2C2C2E] text-gray-400 hover:text-white active:scale-90 transition-all flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            <div class="flex items-center gap-2">
+                <button id="admin-db-login" onclick="window.adminFirebaseLogin && window.adminFirebaseLogin()" class="h-8 px-2.5 rounded-lg bg-[#2C2C2E] text-gray-400 hover:text-white active:scale-95 transition-all flex items-center gap-1.5 text-[10px] font-bold" title="Firebase 로그인">
+                    <i class="fa-solid fa-cloud"></i><span id="admin-db-status">DB 연결</span>
+                </button>
+                <button onclick="window.location.href='index.html'" class="w-8 h-8 rounded-lg bg-[#2C2C2E] text-gray-400 hover:text-white active:scale-90 transition-all flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
         </div>
 
         <!-- Tab bar (segmented control) -->
         <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0">
             <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-1 text-[11px]"></i>납부현황</button>
-            <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-receipt mr-1 text-[11px]"></i>사용내역</button>
+            <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-1 text-[11px]"></i>가계부</button>
             <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-1 text-[11px]"></i>설정</button>
         </div>
 
@@ -96,10 +104,14 @@
                 </div>
             </div>
 
-            <!-- ===== 사용내역 탭 ===== -->
+            <!-- ===== 가계부 탭 ===== -->
             <div id="tab-expense" class="admin-tab-panel hidden">
-                <button onclick="window.addExpense()" class="w-full mb-3 bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold py-2.5 rounded-xl text-sm active:scale-[0.98] transition-transform"><i class="fa-solid fa-plus mr-1.5"></i>내역 추가</button>
-                <div id="admin-expense-summary" class="text-[11px] text-gray-500 mb-3 px-1 leading-relaxed"></div>
+                <button onclick="window.addExpense()" class="w-full mb-3 bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold py-2.5 rounded-xl text-sm active:scale-[0.98] transition-transform"><i class="fa-solid fa-plus mr-1.5"></i>가계부 항목 추가</button>
+                <div id="admin-expense-summary" class="grid grid-cols-3 gap-2 mb-3"></div>
+                <label class="flex items-start gap-2.5 bg-[#242426] border border-white/5 rounded-xl px-3 py-2.5 mb-3 cursor-pointer">
+                    <input id="ledger-auto-balance" type="checkbox" checked class="mt-0.5 accent-blue-500">
+                    <span class="min-w-0"><strong class="block text-[11.5px] text-gray-200">가계부 변경분을 총 잔액에 반영</strong><span class="block text-[10px] text-gray-500 mt-0.5 leading-snug">입금은 더하고 지출은 빼서 저장합니다. 잔액을 직접 맞췄다면 체크를 해제하세요.</span></span>
+                </label>
                 <div id="admin-expense-list" class="space-y-2.5"></div>
             </div>
 
@@ -139,9 +151,20 @@
         window.meetingData = null;
         window.currentDuesMonth = new Date().getMonth() + 1;
         window.adminActiveTab = 'dues';
+        window._savedExpenseNet = null;
+        window._ledgerAppliedDelta = 0;
+        window._ledgerDirty = false;
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
         const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        window.calculateExpenseNet = function(expenses) {
+            return (Array.isArray(expenses) ? expenses : []).reduce((sum, entry) => {
+                const amount = Math.abs(Number(entry && entry.amount) || 0);
+                const income = entry && (entry.type === 'income' || entry.type === '입금' || entry.type === '수입');
+                return sum + (income ? amount : -amount);
+            }, 0);
+        };
+        window.markLedgerDirty = function() { window._ledgerDirty = true; };
 
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('adminAuth') === '0920') {
@@ -162,6 +185,7 @@
                 document.getElementById('admin-screen').classList.remove('hidden');
                 document.getElementById('admin-screen').classList.add('flex');
                 window.openAdminModalReal();
+                if (window.adminFirebaseLogin) window.adminFirebaseLogin();
             } else {
                 alert('비밀번호가 틀렸습니다.');
             }
@@ -182,7 +206,7 @@
 
         // 탭 전환
         window.switchAdminTab = function(name) {
-            // 사용내역 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
+            // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
             ['dues', 'expense', 'settings'].forEach(t => {
@@ -207,6 +231,7 @@
         window.openAdminModalReal = function() {
             if (!window.meetingData) window.meetingData = getInitialMeetingData();
             if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
+            if (window._savedExpenseNet === null) window._savedExpenseNet = window.calculateExpenseNet(window.meetingData.expenses);
 
             document.getElementById('admin-month-title').innerText = window.currentDuesMonth;
             document.getElementById('admin-total-balance').value = window.meetingData.totalBalance || 0;
@@ -256,7 +281,7 @@
                 </div>`;
             });
 
-            // 사용 내역
+            // 가계부
             window.renderExpenseList();
 
             // 현재 탭 상태 유지
@@ -341,7 +366,7 @@
             }
         };
 
-        /* ===== 사용 내역(지출/입금) 관리 ===== */
+        /* ===== 가계부(지출/입금) 관리 ===== */
         window.renderExpenseList = function() {
             const wrap = document.getElementById('admin-expense-list');
             const sumEl = document.getElementById('admin-expense-summary');
@@ -353,29 +378,56 @@
             const isInc = (e) => (e.type === 'income' || e.type === '입금');
             const totalExp = exps.filter(e => !isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
             const totalInc = exps.filter(e => isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
-            if (sumEl) sumEl.innerHTML = `총 ${exps.length}건 · 지출 <span class="text-red-400 font-bold">${totalExp.toLocaleString()}원</span> · 입금 <span class="text-blue-400 font-bold">${totalInc.toLocaleString()}원</span>`;
+            const net = totalInc - totalExp;
+            if (sumEl) sumEl.innerHTML = `
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">지출 · ${exps.filter(e => !isInc(e)).length}건</span><strong class="block text-[13px] text-red-400 mt-1">${totalExp.toLocaleString()}원</strong></div>
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">입금 · ${exps.filter(isInc).length}건</span><strong class="block text-[13px] text-blue-400 mt-1">${totalInc.toLocaleString()}원</strong></div>
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">차액</span><strong class="block text-[13px] ${net >= 0 ? 'text-blue-400' : 'text-red-400'} mt-1">${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString()}원</strong></div>`;
 
             if (exps.length === 0) {
-                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">등록된 사용 내역이 없습니다.<br>위 <span class="text-blue-400 font-bold">내역 추가</span> 버튼으로 추가하세요.</div>`;
+                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">등록된 가계부 항목이 없습니다.<br>위 <span class="text-blue-400 font-bold">가계부 항목 추가</span> 버튼으로 추가하세요.</div>`;
                 return;
             }
 
             wrap.innerHTML = exps.map((e, i) => {
                 const income = isInc(e);
+                const categories = income
+                    ? ['회비/입금', '이자', '환급', '기타수입']
+                    : ['식비', '교통', '숙박', '관람/체험', '쇼핑', '기타'];
+                const selectedCategory = e.category || (income ? '기타수입' : '기타');
+                if (!categories.includes(selectedCategory)) categories.push(selectedCategory);
+                const categoryOptions = categories.map(category =>
+                    `<option value="${escAttr(category)}" ${category === selectedCategory ? 'selected' : ''}>${category}</option>`
+                ).join('');
                 return `
-                <div class="bg-[#2C2C2E] rounded-xl p-3 border border-gray-700 space-y-2">
+                <div class="bg-[#2C2C2E] rounded-xl p-3 border border-gray-700 space-y-2.5">
                     <div class="flex items-center gap-2">
                         <button onclick="window.toggleExpenseType(${i})" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0 ${income ? 'bg-blue-900/30 text-blue-400' : 'bg-red-900/30 text-red-400'}">${income ? '입금' : '지출'}</button>
-                        <input type="date" id="exp-date-${i}" value="${escAttr(e.date)}" class="fld flex-1 text-xs px-2 py-1.5">
+                        <input type="date" id="exp-date-${i}" value="${escAttr(e.date)}" oninput="window.markLedgerDirty()" class="fld flex-1 text-xs px-2 py-1.5">
                         <button onclick="window.removeExpense(${i})" class="w-8 h-8 rounded-lg bg-[#3C3C3E] text-red-400 flex items-center justify-center active:scale-90 transition-transform shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
                     </div>
-                    <input type="text" id="exp-title-${i}" value="${escAttr(e.title)}" placeholder="내역 (예: 정기모임 회식비)" class="fld w-full text-sm px-3 py-2">
-                    <div class="flex gap-2">
-                        <div class="relative flex-1">
-                            <input type="number" id="exp-amount-${i}" value="${Number(e.amount) || 0}" placeholder="금액" class="fld w-full text-sm pl-3 pr-7 py-2 text-right">
-                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">원</span>
+                    <div class="grid grid-cols-[1fr_1.25fr] gap-2">
+                        <div>
+                            <label class="sec-label text-gray-500 block mb-1">분류</label>
+                            <select id="exp-category-${i}" onchange="window.markLedgerDirty()" class="fld w-full text-xs px-2.5 py-2">${categoryOptions}</select>
                         </div>
-                        <input type="text" id="exp-memo-${i}" value="${escAttr(e.memo)}" placeholder="메모 (선택)" class="fld flex-1 text-sm px-3 py-2">
+                        <div class="relative flex-1">
+                            <label class="sec-label text-gray-500 block mb-1">금액</label>
+                            <input type="number" min="0" id="exp-amount-${i}" value="${Number(e.amount) || 0}" oninput="window.markLedgerDirty()" placeholder="금액" class="fld w-full text-sm pl-3 pr-7 py-2 text-right">
+                            <span class="absolute right-3 bottom-2.5 text-gray-500 text-xs">원</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="sec-label text-gray-500 block mb-1">내역</label>
+                        <input type="text" id="exp-title-${i}" value="${escAttr(e.title)}" oninput="window.markLedgerDirty()" placeholder="예: 정기모임 저녁식사" class="fld w-full text-sm px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="sec-label text-gray-500 block mb-1">${income ? '입금 출처' : '사용처'}</label>
+                        <input type="text" id="exp-place-${i}" value="${escAttr(e.place || e.location || e.merchant || '')}" oninput="window.markLedgerDirty()" placeholder="${income ? '예: 모임통장 이자' : '예: 유성 고깃집'}" class="fld w-full text-sm px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="sec-label text-gray-500 block mb-1">메모 <span class="font-normal">(선택)</span></label>
+                        <input type="text" id="exp-memo-${i}" value="${escAttr(e.memo)}" oninput="window.markLedgerDirty()" placeholder="예: 6명 회식" class="fld w-full text-sm px-3 py-2">
                     </div>
                 </div>`;
             }).join('');
@@ -385,36 +437,50 @@
         window.collectExpenses = function() {
             if (!window.meetingData || !Array.isArray(window.meetingData.expenses)) return;
             window.meetingData.expenses.forEach((e, i) => {
-                const d = document.getElementById(`exp-date-${i}`); if (d) e.date = d.value;
-                const t = document.getElementById(`exp-title-${i}`); if (t) e.title = t.value;
-                const a = document.getElementById(`exp-amount-${i}`); if (a) e.amount = parseInt(a.value) || 0;
-                const mo = document.getElementById(`exp-memo-${i}`); if (mo) e.memo = mo.value;
+                const next = { ...e };
+                const d = document.getElementById(`exp-date-${i}`); if (d) next.date = d.value;
+                const t = document.getElementById(`exp-title-${i}`); if (t) next.title = t.value.trim();
+                const a = document.getElementById(`exp-amount-${i}`); if (a) next.amount = Math.abs(parseInt(a.value) || 0);
+                const c = document.getElementById(`exp-category-${i}`); if (c) next.category = c.value;
+                const p = document.getElementById(`exp-place-${i}`); if (p) next.place = p.value.trim();
+                const mo = document.getElementById(`exp-memo-${i}`); if (mo) next.memo = mo.value.trim();
+                if (JSON.stringify(next) !== JSON.stringify(e)) window._ledgerDirty = true;
+                Object.assign(e, next);
             });
         };
 
         window.addExpense = function() {
             if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
             window.collectExpenses();
-            const today = new Date().toISOString().slice(0, 10);
-            window.meetingData.expenses.unshift({ date: today, title: '', amount: 0, type: 'expense', memo: '' });
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            window.meetingData.expenses.unshift({ date: today, title: '', amount: 0, type: 'expense', category: '식비', place: '', memo: '' });
+            window._ledgerDirty = true;
             window.renderExpenseList();
         };
 
         window.removeExpense = function(i) {
             window.collectExpenses();
+            const item = window.meetingData.expenses[i];
+            if (item && (item.title || Number(item.amount)) && !confirm('이 가계부 항목을 삭제할까요?')) return;
             window.meetingData.expenses.splice(i, 1);
+            window._ledgerDirty = true;
             window.renderExpenseList();
         };
 
         window.toggleExpenseType = function(i) {
             window.collectExpenses();
             const e = window.meetingData.expenses[i];
-            e.type = (e.type === 'income' || e.type === '입금') ? 'expense' : 'income';
+            const toExpense = (e.type === 'income' || e.type === '입금');
+            e.type = toExpense ? 'expense' : 'income';
+            e.category = toExpense ? '기타' : '기타수입';
+            window._ledgerDirty = true;
             window.renderExpenseList();
         };
 
         window.saveAdminData = async function() {
-            if (!window.meetingData || !window.meetingDb) { alert("DB 연결 중..."); return; }
+            if (!window.adminDbReady && window.adminFirebaseLogin) await window.adminFirebaseLogin();
+            if (!window.meetingData || !window.meetingDb || !window.adminDbReady) { alert("Google 로그인 후 다시 저장해 주세요."); return; }
 
             const bal = parseInt(document.getElementById('admin-total-balance').value) || 0;
             window.meetingData.totalBalance = bal;
@@ -430,15 +496,40 @@
 
             if (!window.meetingData.exemptions) window.meetingData.exemptions = { '류짱': 1, '성원제': 1, '전시기': 1 };
 
-            // 사용 내역 입력값 수집 (빈 내역은 저장 안 함)
+            // 가계부 입력값 수집 (완전히 빈 항목은 저장 안 함)
             window.collectExpenses();
             if (Array.isArray(window.meetingData.expenses)) {
                 window.meetingData.expenses = window.meetingData.expenses.filter(e => (e.title && e.title.trim() !== '') || (Number(e.amount) || 0) !== 0);
             }
+            const invalidExpense = (window.meetingData.expenses || []).find(e => !e.date || !e.title || !(Number(e.amount) > 0));
+            if (invalidExpense) {
+                alert('가계부의 날짜, 내역, 금액을 모두 입력해 주세요.');
+                window.adminActiveTab = 'expense';
+                window.openAdminModalReal();
+                return;
+            }
+
+            // 마지막 저장 상태와 현재 가계부의 순변동 차이만 잔액에 반영한다.
+            const currentNet = window.calculateExpenseNet(window.meetingData.expenses);
+            const savedNet = Number(window._savedExpenseNet) || 0;
+            const targetDelta = currentNet - savedNet;
+            const alreadyApplied = Number(window._ledgerAppliedDelta) || 0;
+            const autoBalance = document.getElementById('ledger-auto-balance');
+            if (!autoBalance || autoBalance.checked) {
+                window.meetingData.totalBalance = bal - alreadyApplied + targetDelta;
+                window._ledgerAppliedDelta = targetDelta;
+            } else {
+                window.meetingData.totalBalance = bal - alreadyApplied;
+                window._ledgerAppliedDelta = 0;
+            }
+            document.getElementById('admin-total-balance').value = window.meetingData.totalBalance;
 
             try {
                 await window.setDoc(window.doc(window.meetingDb, ...window.MEETING_PATH), window.meetingData);
                 alert('저장 완료! ✅');
+                window._savedExpenseNet = currentNet;
+                window._ledgerAppliedDelta = 0;
+                window._ledgerDirty = false;
                 window.renderExpenseList();
             } catch (e) {
                 console.error(e);
@@ -450,7 +541,7 @@
     <!-- Firebase Module -->
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
@@ -464,23 +555,26 @@
             const meetingApp = !getApps().length ? initializeApp(meetingConfig, 'meetingApp') : getApps()[0];
             const meetingAuth = getAuth(meetingApp);
             window.meetingDb = getFirestore(meetingApp);
+            window.adminDbReady = false;
+            let meetingUnsub = null;
+            let isFirstLoad = true;
 
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(meetingAuth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(meetingAuth);
+            const setDbStatus = (text, connected) => {
+                const status = document.getElementById('admin-db-status');
+                const button = document.getElementById('admin-db-login');
+                if (status) status.textContent = text;
+                if (button) {
+                    button.classList.toggle('text-emerald-400', !!connected);
+                    button.classList.toggle('bg-emerald-500/10', !!connected);
+                    button.classList.toggle('text-gray-400', !connected);
                 }
-            } catch (e) {
-                await signInAnonymously(meetingAuth);
-            }
+            };
 
-            onAuthStateChanged(meetingAuth, (user) => {
-                if (!user) return;
-
-                let isFirstLoad = true;
-
-                onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
+            const subscribeMeeting = () => {
+                if (meetingUnsub) return;
+                window.adminDbReady = true;
+                setDbStatus('DB 연결됨', true);
+                meetingUnsub = onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         if (data.records) {
@@ -495,7 +589,11 @@
                             delete data.exemptions['지노'];
                         }
                         if (!Array.isArray(data.expenses)) data.expenses = [];
-                        window.meetingData = data;
+                        if (isFirstLoad || !window._ledgerDirty) {
+                            window.meetingData = data;
+                            window._savedExpenseNet = window.calculateExpenseNet(data.expenses);
+                            window._ledgerAppliedDelta = 0;
+                        }
 
                         // 처음 진짜 데이터를 수신하면 화면 새로고침
                         if (isFirstLoad) {
@@ -505,7 +603,47 @@
                             isFirstLoad = false;
                         }
                     }
+                }, (error) => {
+                    console.error(error);
+                    window.adminDbReady = false;
+                    setDbStatus('권한 확인', false);
                 });
+            };
+
+            try { await setPersistence(meetingAuth, browserLocalPersistence); } catch (e) {}
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            window.adminFirebaseLogin = async function() {
+                if (meetingAuth.currentUser && !meetingAuth.currentUser.isAnonymous) {
+                    subscribeMeeting();
+                    return meetingAuth.currentUser;
+                }
+                setDbStatus('로그인 중…', false);
+                try {
+                    if (meetingAuth.currentUser && meetingAuth.currentUser.isAnonymous) await signOut(meetingAuth);
+                    const result = await signInWithPopup(meetingAuth, provider);
+                    subscribeMeeting();
+                    return result.user;
+                } catch (error) {
+                    console.error(error);
+                    setDbStatus('DB 로그인', false);
+                    if (error && error.code !== 'auth/popup-closed-by-user') alert('Google 로그인에 실패했습니다.');
+                    return null;
+                }
+            };
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try { await signInWithCustomToken(meetingAuth, __initial_auth_token); } catch (e) { console.error(e); }
+            }
+
+            onAuthStateChanged(meetingAuth, (user) => {
+                if (user && !user.isAnonymous) subscribeMeeting();
+                else {
+                    window.adminDbReady = false;
+                    setDbStatus('DB 로그인', false);
+                    if (user && user.isAnonymous) signOut(meetingAuth).catch(() => {});
+                }
             });
         }
 
