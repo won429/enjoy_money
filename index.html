@@ -106,7 +106,12 @@
 
             <!-- ===== 가계부 탭 ===== -->
             <div id="tab-expense" class="admin-tab-panel hidden">
-                <button onclick="window.addExpense()" class="w-full mb-3 bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold py-2.5 rounded-xl text-sm active:scale-[0.98] transition-transform"><i class="fa-solid fa-plus mr-1.5"></i>가계부 항목 추가</button>
+                <div class="bg-[#242426] border border-white/5 rounded-xl p-3 mb-3">
+                    <label class="sec-label text-blue-400 block mb-1.5"><i class="fa-regular fa-calendar-check mr-1"></i>관리할 모임</label>
+                    <select id="admin-ledger-meeting" onchange="window.selectLedgerMeeting(this.value)" class="fld w-full px-3 py-2.5 text-sm font-bold"></select>
+                    <p id="admin-ledger-period" class="text-[10px] text-gray-500 mt-2 leading-snug"></p>
+                </div>
+                <button id="admin-add-expense" onclick="window.addExpense()" class="w-full mb-3 bg-blue-500/15 border border-blue-500/40 text-blue-400 font-bold py-2.5 rounded-xl text-sm active:scale-[0.98] transition-transform disabled:opacity-35 disabled:active:scale-100"><i class="fa-solid fa-plus mr-1.5"></i>선택한 모임에 항목 추가</button>
                 <div id="admin-expense-summary" class="grid grid-cols-3 gap-2 mb-3"></div>
                 <label class="flex items-start gap-2.5 bg-[#242426] border border-white/5 rounded-xl px-3 py-2.5 mb-3 cursor-pointer">
                     <input id="ledger-auto-balance" type="checkbox" checked class="mt-0.5 accent-blue-500">
@@ -154,6 +159,8 @@
         window._savedExpenseNet = null;
         window._ledgerAppliedDelta = 0;
         window._ledgerDirty = false;
+        window.scheduleData = {};
+        window._adminLedgerMeetingKey = '';
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
         const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -165,6 +172,108 @@
             }, 0);
         };
         window.markLedgerDirty = function() { window._ledgerDirty = true; };
+
+        const adminDateFromKey = (value) => {
+            const parts = String(value || '').split('-').map(Number);
+            if (parts.length < 3 || parts.some(Number.isNaN)) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+        const adminDateKey = (date) => date
+            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+            : '';
+        const adminDateText = (date, withYear = true) => date
+            ? `${withYear ? date.getFullYear() + '년 ' : ''}${date.getMonth() + 1}월 ${date.getDate()}일`
+            : '';
+
+        window.buildAdminLedgerMeetings = function() {
+            const points = [];
+            Object.keys(window.scheduleData || {}).sort().forEach(dateKey => {
+                const date = adminDateFromKey(dateKey);
+                (window.scheduleData[dateKey] || []).forEach(event => {
+                    if (date && event && event.type === 'meet') points.push({ date, title: event.title || '정기모임' });
+                });
+            });
+            const meetings = [];
+            points.forEach(point => {
+                const last = meetings[meetings.length - 1];
+                const gap = last ? Math.round((point.date - last.end) / 86400000) : 99;
+                if (last && last.title === point.title && gap >= 0 && gap <= 2) last.end = point.date;
+                else meetings.push({ key: adminDateKey(point.date), start: point.date, end: point.date, title: point.title });
+            });
+
+            // 일정이 삭제되더라도 이미 저장된 모임별 가계부는 선택할 수 있게 유지한다.
+            (window.meetingData && Array.isArray(window.meetingData.expenses) ? window.meetingData.expenses : []).forEach(entry => {
+                if (!entry.meetingKey || meetings.some(meeting => meeting.key === entry.meetingKey)) return;
+                const start = adminDateFromKey(entry.meetingStart || entry.meetingKey);
+                const end = adminDateFromKey(entry.meetingEnd || entry.meetingStart || entry.meetingKey);
+                if (start) meetings.push({ key: entry.meetingKey, start, end: end || start, title: entry.meetingTitle || '정기모임' });
+            });
+            meetings.sort((a, b) => a.start - b.start);
+            const expenseDates = (window.meetingData && Array.isArray(window.meetingData.expenses) ? window.meetingData.expenses : [])
+                .map(entry => adminDateFromKey(entry.date)).filter(Boolean).sort((a, b) => a - b);
+            meetings.forEach((meeting, index) => {
+                const previous = meetings[index - 1];
+                meeting.periodStart = previous
+                    ? new Date(previous.end.getFullYear(), previous.end.getMonth(), previous.end.getDate() + 1)
+                    : (expenseDates[0] && expenseDates[0] < meeting.start ? expenseDates[0] : meeting.start);
+                meeting.periodEnd = meeting.end;
+            });
+            return meetings;
+        };
+
+        window.assignExpensesToMeetings = function(meetings) {
+            const expenses = window.meetingData && Array.isArray(window.meetingData.expenses) ? window.meetingData.expenses : [];
+            expenses.forEach(entry => {
+                let meeting = meetings.find(item => item.key === entry.meetingKey);
+                const date = adminDateFromKey(entry.date);
+                if (!meeting && date) {
+                    meeting = meetings.find(item => date >= item.periodStart && date <= item.periodEnd);
+                    if (!meeting && meetings.length) {
+                        meeting = meetings.reduce((best, item) =>
+                            Math.abs(item.start - date) < Math.abs(best.start - date) ? item : best
+                        , meetings[0]);
+                    }
+                }
+                if (!meeting) return;
+                entry.meetingKey = meeting.key;
+                entry.meetingTitle = meeting.title;
+                entry.meetingStart = adminDateKey(meeting.start);
+                entry.meetingEnd = adminDateKey(meeting.end);
+            });
+        };
+
+        window.renderLedgerMeetingControl = function() {
+            const select = document.getElementById('admin-ledger-meeting');
+            const period = document.getElementById('admin-ledger-period');
+            const addButton = document.getElementById('admin-add-expense');
+            if (!select) return [];
+            const meetings = window.buildAdminLedgerMeetings();
+            window.assignExpensesToMeetings(meetings);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (!meetings.some(item => item.key === window._adminLedgerMeetingKey)) {
+                const current = meetings.find(item => item.end >= today) || meetings[meetings.length - 1];
+                window._adminLedgerMeetingKey = current ? current.key : '';
+            }
+            select.innerHTML = meetings.length
+                ? meetings.slice().reverse().map(meeting =>
+                    `<option value="${escAttr(meeting.key)}" ${meeting.key === window._adminLedgerMeetingKey ? 'selected' : ''}>${adminDateText(meeting.start)} · ${meeting.title}</option>`
+                ).join('')
+                : '<option value="">일정에 정기모임을 먼저 등록하세요</option>';
+            const selected = meetings.find(item => item.key === window._adminLedgerMeetingKey);
+            if (period) period.textContent = selected
+                ? `관리 기간 · ${adminDateText(selected.periodStart)} ~ ${adminDateText(selected.periodEnd)}`
+                : '일정의 정기모임 항목을 기준으로 가계부가 만들어집니다.';
+            if (addButton) addButton.disabled = !selected;
+            return meetings;
+        };
+
+        window.selectLedgerMeeting = function(key) {
+            try { window.collectExpenses(); } catch (e) {}
+            window._adminLedgerMeetingKey = key || '';
+            window.renderLedgerMeetingControl();
+            window.renderExpenseList();
+        };
 
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('adminAuth') === '0920') {
@@ -281,7 +390,8 @@
                 </div>`;
             });
 
-            // 가계부
+            // 모임 일정별 가계부
+            window.renderLedgerMeetingControl();
             window.renderExpenseList();
 
             // 현재 탭 상태 유지
@@ -373,23 +483,33 @@
             if (!wrap) return;
             if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
             const exps = window.meetingData.expenses;
+            const meetings = window.buildAdminLedgerMeetings();
+            window.assignExpensesToMeetings(meetings);
+            const selectedMeeting = meetings.find(meeting => meeting.key === window._adminLedgerMeetingKey);
+            const scoped = exps.map((entry, index) => ({ entry, index }))
+                .filter(item => selectedMeeting && item.entry.meetingKey === selectedMeeting.key);
 
             // 요약
             const isInc = (e) => (e.type === 'income' || e.type === '입금');
-            const totalExp = exps.filter(e => !isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
-            const totalInc = exps.filter(e => isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
+            const selectedEntries = scoped.map(item => item.entry);
+            const totalExp = selectedEntries.filter(e => !isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
+            const totalInc = selectedEntries.filter(e => isInc(e)).reduce((s, e) => s + (Math.abs(Number(e.amount)) || 0), 0);
             const net = totalInc - totalExp;
             if (sumEl) sumEl.innerHTML = `
-                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">지출 · ${exps.filter(e => !isInc(e)).length}건</span><strong class="block text-[13px] text-red-400 mt-1">${totalExp.toLocaleString()}원</strong></div>
-                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">입금 · ${exps.filter(isInc).length}건</span><strong class="block text-[13px] text-blue-400 mt-1">${totalInc.toLocaleString()}원</strong></div>
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">지출 · ${selectedEntries.filter(e => !isInc(e)).length}건</span><strong class="block text-[13px] text-red-400 mt-1">${totalExp.toLocaleString()}원</strong></div>
+                <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">입금 · ${selectedEntries.filter(isInc).length}건</span><strong class="block text-[13px] text-blue-400 mt-1">${totalInc.toLocaleString()}원</strong></div>
                 <div class="ledger-summary-card"><span class="block text-[9.5px] text-gray-500">차액</span><strong class="block text-[13px] ${net >= 0 ? 'text-blue-400' : 'text-red-400'} mt-1">${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString()}원</strong></div>`;
 
-            if (exps.length === 0) {
-                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">등록된 가계부 항목이 없습니다.<br>위 <span class="text-blue-400 font-bold">가계부 항목 추가</span> 버튼으로 추가하세요.</div>`;
+            if (!selectedMeeting) {
+                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed">일정에 정기모임을 먼저 등록하면<br>모임별 가계부를 관리할 수 있습니다.</div>`;
+                return;
+            }
+            if (scoped.length === 0) {
+                wrap.innerHTML = `<div class="text-center py-10 text-gray-500 text-sm leading-relaxed"><strong class="text-gray-300">${selectedMeeting.title}</strong>의 가계부가 비어 있습니다.<br>위 추가 버튼으로 첫 항목을 등록하세요.</div>`;
                 return;
             }
 
-            wrap.innerHTML = exps.map((e, i) => {
+            wrap.innerHTML = scoped.map(({ entry: e, index: i }) => {
                 const income = isInc(e);
                 const categories = income
                     ? ['회비/입금', '이자', '환급', '기타수입']
@@ -452,9 +572,24 @@
         window.addExpense = function() {
             if (!Array.isArray(window.meetingData.expenses)) window.meetingData.expenses = [];
             window.collectExpenses();
+            const meeting = window.buildAdminLedgerMeetings().find(item => item.key === window._adminLedgerMeetingKey);
+            if (!meeting) { alert('관리할 모임을 먼저 선택해 주세요.'); return; }
             const now = new Date();
-            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            window.meetingData.expenses.unshift({ date: today, title: '', amount: 0, type: 'expense', category: '식비', place: '', memo: '' });
+            now.setHours(0, 0, 0, 0);
+            const entryDate = now >= meeting.periodStart && now <= meeting.periodEnd ? now : meeting.start;
+            window.meetingData.expenses.unshift({
+                date: adminDateKey(entryDate),
+                title: '',
+                amount: 0,
+                type: 'expense',
+                category: '식비',
+                place: '',
+                memo: '',
+                meetingKey: meeting.key,
+                meetingTitle: meeting.title,
+                meetingStart: adminDateKey(meeting.start),
+                meetingEnd: adminDateKey(meeting.end)
+            });
             window._ledgerDirty = true;
             window.renderExpenseList();
         };
@@ -508,6 +643,20 @@
                 window.openAdminModalReal();
                 return;
             }
+            const ledgerMeetings = window.buildAdminLedgerMeetings();
+            window.assignExpensesToMeetings(ledgerMeetings);
+            const outsidePeriod = (window.meetingData.expenses || []).find(entry => {
+                const meeting = ledgerMeetings.find(item => item.key === entry.meetingKey);
+                const date = adminDateFromKey(entry.date);
+                return !meeting || !date || date < meeting.periodStart || date > meeting.periodEnd;
+            });
+            if (outsidePeriod) {
+                alert('가계부 날짜가 선택한 모임의 관리 기간을 벗어났습니다.');
+                window.adminActiveTab = 'expense';
+                window._adminLedgerMeetingKey = outsidePeriod.meetingKey || window._adminLedgerMeetingKey;
+                window.openAdminModalReal();
+                return;
+            }
 
             // 마지막 저장 상태와 현재 가계부의 순변동 차이만 잔액에 반영한다.
             const currentNet = window.calculateExpenseNet(window.meetingData.expenses);
@@ -545,6 +694,7 @@
         import { getFirestore, doc, onSnapshot, setDoc, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
+        window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
         window.BACKUP_PATH = ['meeting_account', 'backups', 'history'];
         window.doc = doc;
         window.setDoc = setDoc;
@@ -557,6 +707,7 @@
             window.meetingDb = getFirestore(meetingApp);
             window.adminDbReady = false;
             let meetingUnsub = null;
+            let scheduleUnsub = null;
             let isFirstLoad = true;
 
             const setDbStatus = (text, connected) => {
@@ -571,10 +722,9 @@
             };
 
             const subscribeMeeting = () => {
-                if (meetingUnsub) return;
                 window.adminDbReady = true;
                 setDbStatus('DB 연결됨', true);
-                meetingUnsub = onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
+                if (!meetingUnsub) meetingUnsub = onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         if (data.records) {
@@ -607,6 +757,16 @@
                     console.error(error);
                     window.adminDbReady = false;
                     setDbStatus('권한 확인', false);
+                });
+                if (!scheduleUnsub) scheduleUnsub = onSnapshot(doc(window.meetingDb, ...window.SCHEDULE_PATH), (docSnap) => {
+                    window.scheduleData = docSnap.exists() ? (docSnap.data() || {}) : {};
+                    if (document.getElementById('admin-screen').classList.contains('flex')) {
+                        window.renderLedgerMeetingControl();
+                        if (window.adminActiveTab === 'expense') window.renderExpenseList();
+                    }
+                }, (error) => {
+                    console.error(error);
+                    setDbStatus('일정 권한 확인', false);
                 });
             };
 
