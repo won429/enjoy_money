@@ -28,6 +28,10 @@
         .fld:focus { border-color:#3182F6; }
         .sec-label { font-size:11px; font-weight:700; letter-spacing:-0.01em; }
         .ledger-summary-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:11px 12px; }
+        .scratch-admin-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:16px; overflow:hidden; }
+        .scratch-admin-result { background:#1c1c1e; border:1px solid rgba(255,255,255,.06); border-radius:12px; }
+        .scratch-admin-dot { width:7px; height:7px; border-radius:999px; flex:none; }
+        .scratch-admin-action:disabled { opacity:.32; cursor:not-allowed; }
         input[type="date"] { color-scheme:dark; min-width:0; }
         input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
     </style>
@@ -67,6 +71,7 @@
         <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0">
             <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-1 text-[11px]"></i>납부현황</button>
             <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-1 text-[11px]"></i>가계부</button>
+            <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-[11px]"></i>스크래치</button>
             <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-1 text-[11px]"></i>설정</button>
         </div>
 
@@ -120,6 +125,29 @@
                 <div id="admin-expense-list" class="space-y-2.5"></div>
             </div>
 
+            <!-- ===== 스크래치 탭 ===== -->
+            <div id="tab-scratch" class="admin-tab-panel hidden">
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">가입 멤버</span>
+                        <strong id="scratch-summary-members" class="text-[16px] text-white">0명</strong>
+                    </div>
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">당첨 잠금</span>
+                        <strong id="scratch-summary-wins" class="text-[16px] text-emerald-400">0건</strong>
+                    </div>
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">참여 제한</span>
+                        <strong id="scratch-summary-cooldowns" class="text-[16px] text-orange-400">0명</strong>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 mb-3">
+                    <i class="fa-solid fa-circle-info text-blue-400 text-[11px] mt-0.5"></i>
+                    <p class="text-[10px] text-gray-400 leading-relaxed">정식 멤버의 Firebase 기록만 표시합니다. 잠금 해제와 참여 제한 초기화는 누르는 즉시 앱에 반영됩니다.</p>
+                </div>
+                <div id="admin-scratch-list" class="space-y-2.5"></div>
+            </div>
+
             <!-- ===== 설정 탭 ===== -->
             <div id="tab-settings" class="admin-tab-panel hidden">
                 <!-- 공지 배너 -->
@@ -146,7 +174,7 @@
         </div>
 
         <!-- Save -->
-        <div class="mt-4 pt-4 border-t border-gray-800 shrink-0">
+        <div id="admin-save-footer" class="mt-4 pt-4 border-t border-gray-800 shrink-0">
             <button onclick="window.saveAdminData()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-md active:bg-blue-700 transition-colors"><i class="fa-solid fa-floppy-disk mr-1.5"></i>전체 저장하기</button>
         </div>
     </div>
@@ -161,9 +189,15 @@
         window._ledgerDirty = false;
         window.scheduleData = {};
         window._adminLedgerMeetingKey = '';
+        window.adminScratchMembers = [];
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
+        const ADMIN_SCRATCH_CARDS = [
+            { id: 'penalty-waiver', key: 'penaltyWaiver', title: '부과금 면제권', color: '#43B7A5', icon: 'fa-ticket-simple' },
+            { id: 'baemin-gift', key: 'baeminGift', title: '배달의민족 상품권', color: '#F28C18', icon: 'fa-utensils' }
+        ];
         const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         window.calculateExpenseNet = function(expenses) {
             return (Array.isArray(expenses) ? expenses : []).reduce((sum, entry) => {
                 const amount = Math.abs(Number(entry && entry.amount) || 0);
@@ -318,7 +352,7 @@
             // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
-            ['dues', 'expense', 'settings'].forEach(t => {
+            ['dues', 'expense', 'scratch', 'settings'].forEach(t => {
                 const panel = document.getElementById('tab-' + t);
                 if (panel) panel.classList.toggle('hidden', t !== name);
             });
@@ -328,6 +362,9 @@
                 btn.classList.toggle('text-white', active);
                 btn.classList.toggle('text-gray-400', !active);
             });
+            const saveFooter = document.getElementById('admin-save-footer');
+            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch');
+            if (name === 'scratch') window.renderAdminScratch();
         };
 
         window.changeAdminMonth = function(delta) {
@@ -379,6 +416,7 @@
             // 모임 일정별 가계부
             window.renderLedgerMeetingControl();
             window.renderExpenseList();
+            window.renderAdminScratch();
 
             // 현재 탭 상태 유지
             window.switchAdminTab(window.adminActiveTab || 'dues');
@@ -415,6 +453,120 @@
                 </div>`;
             });
         };
+
+        function adminScratchMillis(value) {
+            if (value && typeof value.toMillis === 'function') return value.toMillis();
+            if (value && typeof value.seconds === 'number') return value.seconds * 1000;
+            return Number(value) || 0;
+        }
+
+        function adminScratchDate(value) {
+            const millis = adminScratchMillis(value);
+            if (!millis) return '시간 정보 없음';
+            const date = new Date(millis);
+            return `${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function adminScratchUsage(member) {
+            const raw = (member && member.scratchUsage) || {};
+            const cooldownUntil = adminScratchMillis(raw.cooldownUntil);
+            const cooling = cooldownUntil > Date.now();
+            return {
+                attempts: cooling ? Math.max(0, Math.min(3, Number(raw.attempts) || 0)) : (cooldownUntil ? 0 : Math.max(0, Math.min(3, Number(raw.attempts) || 0))),
+                cooldownUntil,
+                cooling
+            };
+        }
+
+        function adminScratchCountdown(until) {
+            const seconds = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+            return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+        }
+
+        window.renderAdminScratch = function() {
+            const wrap = document.getElementById('admin-scratch-list');
+            if (!wrap) return;
+            const byName = {};
+            (window.adminScratchMembers || []).forEach(member => {
+                if (member && ADMIN_MEMBERS.includes(member.name)) byName[member.name] = member;
+            });
+            const joined = ADMIN_MEMBERS.filter(name => !!byName[name]).length;
+            let wins = 0;
+            let cooldowns = 0;
+            ADMIN_MEMBERS.forEach(name => {
+                const member = byName[name];
+                if (!member) return;
+                const results = member.scratchResults || {};
+                ADMIN_SCRATCH_CARDS.forEach(card => { if (results[card.key] && results[card.key].won) wins += 1; });
+                if (adminScratchUsage(member).cooling) cooldowns += 1;
+            });
+            const joinedEl = document.getElementById('scratch-summary-members');
+            const winsEl = document.getElementById('scratch-summary-wins');
+            const cooldownsEl = document.getElementById('scratch-summary-cooldowns');
+            if (joinedEl) joinedEl.textContent = `${joined}명`;
+            if (winsEl) winsEl.textContent = `${wins}건`;
+            if (cooldownsEl) cooldownsEl.textContent = `${cooldowns}명`;
+
+            wrap.innerHTML = ADMIN_MEMBERS.map(name => {
+                const member = byName[name];
+                if (!member) {
+                    return `
+                    <div class="scratch-admin-card px-3.5 py-3 flex items-center justify-between">
+                        <div>
+                            <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                            <span class="text-[10px] text-gray-600">Firebase 가입 정보 없음</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg bg-white/5 text-[10px] font-bold text-gray-600">미가입</span>
+                    </div>`;
+                }
+                const usage = adminScratchUsage(member);
+                const usageText = usage.cooling ? `${adminScratchCountdown(usage.cooldownUntil)} 제한 중` : `${usage.attempts}/3회 사용`;
+                const usageClass = usage.cooling ? 'text-orange-400 bg-orange-500/10' : 'text-gray-400 bg-white/5';
+                const canResetUsage = usage.cooling || usage.attempts > 0;
+                const resultHtml = ADMIN_SCRATCH_CARDS.map(card => {
+                    const result = member.scratchResults && member.scratchResults[card.key];
+                    const won = !!(result && result.won);
+                    const statusText = !result ? '참여 기록 없음' : (won ? '당첨 · 잠김' : '미당첨');
+                    const statusClass = !result ? 'text-gray-500' : (won ? 'text-emerald-400' : 'text-gray-300');
+                    const detail = result
+                        ? `${Math.max(0, Number(result.matchCount) || 0)}개 일치 · ${adminScratchDate(result.createdAt)}`
+                        : '아직 결과가 저장되지 않았습니다.';
+                    const buttonText = won ? '잠금 해제' : '기록 삭제';
+                    return `
+                    <div class="scratch-admin-result p-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] shrink-0" style="background:${card.color}"><i class="fa-solid ${card.icon}"></i></span>
+                                <div class="min-w-0">
+                                    <strong class="block text-[11px] text-gray-200 truncate">${card.title}</strong>
+                                    <span class="block text-[10px] font-bold ${statusClass}">${statusText}</span>
+                                </div>
+                            </div>
+                            <button onclick="window.clearScratchResult('${member.uid}', '${card.key}', '${escAttr(name)}', '${card.title}', ${won})" ${result ? '' : 'disabled'} class="scratch-admin-action shrink-0 h-7 px-2 rounded-lg bg-white/5 text-[9px] font-bold ${won ? 'text-emerald-400' : 'text-gray-400'} active:scale-95 transition-transform">${buttonText}</button>
+                        </div>
+                        <p class="mt-2 text-[9px] text-gray-600">${detail}</p>
+                    </div>`;
+                }).join('');
+                return `
+                <div class="scratch-admin-card">
+                    <div class="px-3.5 py-3 flex items-center justify-between gap-2 border-b border-white/5">
+                        <div class="min-w-0">
+                            <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                            <span class="block text-[9px] text-gray-600 truncate">${escHtml(member.email || '이메일 정보 없음')}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span class="h-7 px-2 rounded-lg flex items-center ${usageClass} text-[9px] font-bold" data-scratch-cooldown="${usage.cooldownUntil || 0}">${usageText}</span>
+                            <button onclick="window.resetScratchUsage('${member.uid}', '${escAttr(name)}')" ${canResetUsage ? '' : 'disabled'} class="scratch-admin-action h-7 px-2 rounded-lg bg-blue-500/10 text-blue-400 text-[9px] font-bold active:scale-95 transition-transform">제한 초기화</button>
+                        </div>
+                    </div>
+                    <div class="p-2.5 space-y-2">${resultHtml}</div>
+                </div>`;
+            }).join('');
+        };
+
+        window.setInterval(function() {
+            if (window.adminActiveTab === 'scratch') window.renderAdminScratch();
+        }, 1000);
 
         window.updateExemption = function(name, delta) {
             const el = document.getElementById(`admin-ticket-${name}`);
@@ -734,7 +886,7 @@
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
@@ -751,6 +903,7 @@
             window.adminDbReady = false;
             let meetingUnsub = null;
             let scheduleUnsub = null;
+            let membersUnsub = null;
             let isFirstLoad = true;
 
             const setDbStatus = (text, connected) => {
@@ -811,6 +964,22 @@
                     console.error(error);
                     setDbStatus('일정 권한 확인', false);
                 });
+                if (!membersUnsub) membersUnsub = onSnapshot(collection(window.meetingDb, 'members'), (snapshot) => {
+                    const members = [];
+                    snapshot.forEach(memberDoc => {
+                        const value = memberDoc.data() || {};
+                        if (value.name === '지노') value.name = '이진누';
+                        value.uid = memberDoc.id;
+                        members.push(value);
+                    });
+                    window.adminScratchMembers = members;
+                    if (document.getElementById('admin-screen').classList.contains('flex')) {
+                        window.renderAdminScratch();
+                    }
+                }, (error) => {
+                    console.error(error);
+                    setDbStatus('멤버 권한 확인', false);
+                });
             };
 
             try { await setPersistence(meetingAuth, browserLocalPersistence); } catch (e) {}
@@ -833,6 +1002,41 @@
                     setDbStatus('DB 로그인', false);
                     if (error && error.code !== 'auth/popup-closed-by-user') alert('Google 로그인에 실패했습니다.');
                     return null;
+                }
+            };
+
+            window.clearScratchResult = async function(uid, resultKey, memberName, cardTitle, wasWon) {
+                if (!window.adminDbReady) {
+                    const user = await window.adminFirebaseLogin();
+                    if (!user) return;
+                }
+                const action = wasWon ? '당첨 잠금을 해제' : '참여 기록을 삭제';
+                if (!confirm(`${memberName}님의 ${cardTitle} ${action}할까요?\n변경사항은 앱에 즉시 반영됩니다.`)) return;
+                try {
+                    const payload = {};
+                    payload[`scratchResults.${resultKey}`] = deleteField();
+                    await updateDoc(doc(window.meetingDb, 'members', uid), payload);
+                    alert(wasWon ? '당첨 잠금을 해제했습니다.' : '참여 기록을 삭제했습니다.');
+                } catch (error) {
+                    console.error(error);
+                    alert('스크래치 기록을 변경하지 못했습니다. Firebase 권한을 확인해 주세요.');
+                }
+            };
+
+            window.resetScratchUsage = async function(uid, memberName) {
+                if (!window.adminDbReady) {
+                    const user = await window.adminFirebaseLogin();
+                    if (!user) return;
+                }
+                if (!confirm(`${memberName}님의 스크래치 참여 제한을 초기화할까요?\n두 상품에 공통으로 적용되는 3회 참여 횟수와 5분 제한이 초기화됩니다.`)) return;
+                try {
+                    await updateDoc(doc(window.meetingDb, 'members', uid), {
+                        scratchUsage: { attempts: 0, cooldownUntil: 0 }
+                    });
+                    alert('참여 횟수와 5분 제한을 초기화했습니다.');
+                } catch (error) {
+                    console.error(error);
+                    alert('참여 제한을 초기화하지 못했습니다. Firebase 권한을 확인해 주세요.');
                 }
             };
 
