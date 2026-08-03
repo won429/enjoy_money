@@ -194,7 +194,8 @@
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
         const ADMIN_SCRATCH_CARDS = [
             { id: 'penalty-waiver', key: 'penaltyWaiver', title: '부과금 면제권', color: '#43B7A5', icon: 'fa-ticket-simple' },
-            { id: 'baemin-gift', key: 'baeminGift', title: '배달의민족 상품권', color: '#F28C18', icon: 'fa-utensils' }
+            { id: 'baemin-gift', key: 'baeminGift', title: '배달의민족 상품권', color: '#F28C18', icon: 'fa-utensils' },
+            { id: 'cash-prize', key: 'cashPrize', title: '상금 스크래치', color: '#3182F6', icon: 'fa-sack-dollar' }
         ];
         const escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -467,8 +468,9 @@
             return `${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         }
 
-        function adminScratchUsage(member) {
-            const raw = (member && member.scratchUsage) || {};
+        function adminScratchUsage(member, card) {
+            const byCard = (member && member.scratchUsageByCard) || {};
+            const raw = (card && byCard[card.key]) || {};
             const cooldownUntil = adminScratchMillis(raw.cooldownUntil);
             const cooling = cooldownUntil > Date.now();
             return {
@@ -498,14 +500,16 @@
                 if (!member) return;
                 const results = member.scratchResults || {};
                 ADMIN_SCRATCH_CARDS.forEach(card => { if (results[card.key] && results[card.key].won) wins += 1; });
-                if (adminScratchUsage(member).cooling) cooldowns += 1;
+                ADMIN_SCRATCH_CARDS.forEach(card => {
+                    if (adminScratchUsage(member, card).cooling) cooldowns += 1;
+                });
             });
             const joinedEl = document.getElementById('scratch-summary-members');
             const winsEl = document.getElementById('scratch-summary-wins');
             const cooldownsEl = document.getElementById('scratch-summary-cooldowns');
             if (joinedEl) joinedEl.textContent = `${joined}명`;
             if (winsEl) winsEl.textContent = `${wins}건`;
-            if (cooldownsEl) cooldownsEl.textContent = `${cooldowns}명`;
+            if (cooldownsEl) cooldownsEl.textContent = `${cooldowns}건`;
 
             wrap.innerHTML = ADMIN_MEMBERS.map(name => {
                 const member = byName[name];
@@ -519,17 +523,19 @@
                         <span class="px-2 py-1 rounded-lg bg-white/5 text-[10px] font-bold text-gray-600">미가입</span>
                     </div>`;
                 }
-                const usage = adminScratchUsage(member);
-                const usageText = usage.cooling ? `${adminScratchCountdown(usage.cooldownUntil)} 제한 중` : `${usage.attempts}/3회 사용`;
-                const usageClass = usage.cooling ? 'text-orange-400 bg-orange-500/10' : 'text-gray-400 bg-white/5';
-                const canResetUsage = usage.cooling || usage.attempts > 0;
                 const resultHtml = ADMIN_SCRATCH_CARDS.map(card => {
                     const result = member.scratchResults && member.scratchResults[card.key];
+                    const usage = adminScratchUsage(member, card);
+                    const usageText = usage.cooling ? `${adminScratchCountdown(usage.cooldownUntil)} 제한 중` : `${usage.attempts}/3회`;
+                    const usageClass = usage.cooling ? 'text-orange-400 bg-orange-500/10' : 'text-gray-400 bg-white/5';
+                    const canResetUsage = usage.cooling || usage.attempts > 0;
                     const won = !!(result && result.won);
                     const statusText = !result ? '참여 기록 없음' : (won ? '당첨 · 잠김' : '미당첨');
                     const statusClass = !result ? 'text-gray-500' : (won ? 'text-emerald-400' : 'text-gray-300');
                     const detail = result
-                        ? `${Math.max(0, Number(result.matchCount) || 0)}개 일치 · ${adminScratchDate(result.createdAt)}`
+                        ? (card.id === 'cash-prize'
+                            ? `${Math.max(0, Number(result.prizeAmount) || 0).toLocaleString('ko-KR')}원 결과 · ${adminScratchDate(result.createdAt)}`
+                            : `${Math.max(0, Number(result.matchCount) || 0)}개 일치 · ${adminScratchDate(result.createdAt)}`)
                         : '아직 결과가 저장되지 않았습니다.';
                     const buttonText = won ? '잠금 해제' : '기록 삭제';
                     return `
@@ -542,7 +548,11 @@
                                     <span class="block text-[10px] font-bold ${statusClass}">${statusText}</span>
                                 </div>
                             </div>
-                            <button onclick="window.clearScratchResult('${member.uid}', '${card.key}', '${escAttr(name)}', '${card.title}', ${won})" ${result ? '' : 'disabled'} class="scratch-admin-action shrink-0 h-7 px-2 rounded-lg bg-white/5 text-[9px] font-bold ${won ? 'text-emerald-400' : 'text-gray-400'} active:scale-95 transition-transform">${buttonText}</button>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <span class="h-7 px-2 rounded-lg flex items-center ${usageClass} text-[9px] font-bold">${usageText}</span>
+                                <button onclick="window.resetScratchUsage('${member.uid}', '${card.key}', '${escAttr(name)}', '${card.title}')" ${canResetUsage ? '' : 'disabled'} class="scratch-admin-action h-7 px-2 rounded-lg bg-blue-500/10 text-blue-400 text-[9px] font-bold active:scale-95 transition-transform">제한 초기화</button>
+                                <button onclick="window.clearScratchResult('${member.uid}', '${card.key}', '${escAttr(name)}', '${card.title}', ${won})" ${result ? '' : 'disabled'} class="scratch-admin-action h-7 px-2 rounded-lg bg-white/5 text-[9px] font-bold ${won ? 'text-emerald-400' : 'text-gray-400'} active:scale-95 transition-transform">${buttonText}</button>
+                            </div>
                         </div>
                         <p class="mt-2 text-[9px] text-gray-600">${detail}</p>
                     </div>`;
@@ -554,10 +564,7 @@
                             <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
                             <span class="block text-[9px] text-gray-600 truncate">${escHtml(member.email || '이메일 정보 없음')}</span>
                         </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            <span class="h-7 px-2 rounded-lg flex items-center ${usageClass} text-[9px] font-bold" data-scratch-cooldown="${usage.cooldownUntil || 0}">${usageText}</span>
-                            <button onclick="window.resetScratchUsage('${member.uid}', '${escAttr(name)}')" ${canResetUsage ? '' : 'disabled'} class="scratch-admin-action h-7 px-2 rounded-lg bg-blue-500/10 text-blue-400 text-[9px] font-bold active:scale-95 transition-transform">제한 초기화</button>
-                        </div>
+                        <span class="px-2 py-1 rounded-lg bg-white/5 text-[9px] font-bold text-gray-500">상품별 독립</span>
                     </div>
                     <div class="p-2.5 space-y-2">${resultHtml}</div>
                 </div>`;
@@ -1023,17 +1030,17 @@
                 }
             };
 
-            window.resetScratchUsage = async function(uid, memberName) {
+            window.resetScratchUsage = async function(uid, resultKey, memberName, cardTitle) {
                 if (!window.adminDbReady) {
                     const user = await window.adminFirebaseLogin();
                     if (!user) return;
                 }
-                if (!confirm(`${memberName}님의 스크래치 참여 제한을 초기화할까요?\n두 상품에 공통으로 적용되는 3회 참여 횟수와 5분 제한이 초기화됩니다.`)) return;
+                if (!confirm(`${memberName}님의 ${cardTitle} 참여 제한을 초기화할까요?\n이 상품의 3회 참여 횟수와 5분 제한만 초기화됩니다.`)) return;
                 try {
-                    await updateDoc(doc(window.meetingDb, 'members', uid), {
-                        scratchUsage: { attempts: 0, cooldownUntil: 0 }
-                    });
-                    alert('참여 횟수와 5분 제한을 초기화했습니다.');
+                    const payload = {};
+                    payload[`scratchUsageByCard.${resultKey}`] = { attempts: 0, cooldownUntil: 0 };
+                    await updateDoc(doc(window.meetingDb, 'members', uid), payload);
+                    alert(`${cardTitle}의 참여 횟수와 5분 제한을 초기화했습니다.`);
                 } catch (error) {
                     console.error(error);
                     alert('참여 제한을 초기화하지 못했습니다. Firebase 권한을 확인해 주세요.');
