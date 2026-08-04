@@ -150,6 +150,16 @@
 
             <!-- ===== 설정 탭 ===== -->
             <div id="tab-settings" class="admin-tab-panel hidden">
+                <!-- 친구 초대 코드 -->
+                <div class="mb-5">
+                    <label class="sec-label text-emerald-400 block mb-2"><i class="fa-solid fa-user-group mr-1"></i>친구 초대 코드</label>
+                    <div class="flex items-start gap-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 mb-2.5">
+                        <i class="fa-solid fa-circle-info text-emerald-400 text-[11px] mt-0.5"></i>
+                        <p class="text-[10px] text-gray-400 leading-relaxed">오스틴·홍박사가 가입할 때 입력한 정식 멤버 이름을 표시합니다.</p>
+                    </div>
+                    <div id="admin-invite-code-list" class="space-y-2"></div>
+                </div>
+
                 <!-- 공지 배너 -->
                 <div class="mb-5">
                     <label class="sec-label text-blue-400 block mb-1.5"><i class="fa-solid fa-bullhorn mr-1"></i>공지사항 배너 (알약 모양)</label>
@@ -418,6 +428,7 @@
             window.renderLedgerMeetingControl();
             window.renderExpenseList();
             window.renderAdminScratch();
+            window.renderAdminInviteCodes();
 
             // 현재 탭 상태 유지
             window.switchAdminTab(window.adminActiveTab || 'dues');
@@ -567,6 +578,45 @@
                         <span class="px-2 py-1 rounded-lg bg-white/5 text-[9px] font-bold text-gray-500">상품별 독립</span>
                     </div>
                     <div class="p-2.5 space-y-2">${resultHtml}</div>
+                </div>`;
+            }).join('');
+        };
+
+        window.renderAdminInviteCodes = function() {
+            const wrap = document.getElementById('admin-invite-code-list');
+            if (!wrap) return;
+            const byName = {};
+            (window.adminScratchMembers || []).forEach(member => {
+                if (member && member.name) byName[member.name] = member;
+            });
+
+            wrap.innerHTML = ['오스틴', '홍박사'].map(name => {
+                const member = byName[name];
+                if (!member) {
+                    return `
+                    <div class="bg-[#242426] border border-white/5 rounded-xl px-3.5 py-3 flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <strong class="block text-sm text-[#F2F4F6]">${name}</strong>
+                            <span class="block text-[10px] text-gray-600 mt-0.5">Firebase 가입 정보 없음</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg bg-white/5 text-[10px] font-bold text-gray-600 shrink-0">미가입</span>
+                    </div>`;
+                }
+
+                const inviteCode = String(member.friendInviteCode || '').trim();
+                return `
+                <div class="bg-[#242426] border border-white/5 rounded-xl px-3.5 py-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <strong class="block text-sm text-[#F2F4F6]">${name}</strong>
+                            <span class="block text-[9px] text-gray-600 mt-0.5 truncate">${escHtml(member.email || '이메일 정보 없음')}</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg ${inviteCode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-gray-500'} text-[10px] font-bold shrink-0">${inviteCode ? '코드 입력' : '미입력'}</span>
+                    </div>
+                    <div class="mt-2.5 pt-2.5 border-t border-white/5 flex items-center justify-between gap-3">
+                        <span class="text-[10px] text-gray-500">입력한 초대 코드</span>
+                        <strong class="text-[12px] ${inviteCode ? 'text-emerald-400' : 'text-gray-500'}">${inviteCode ? escHtml(inviteCode) : '초대 코드 기록 없음'}</strong>
+                    </div>
                 </div>`;
             }).join('');
         };
@@ -982,6 +1032,7 @@
                     window.adminScratchMembers = members;
                     if (document.getElementById('admin-screen').classList.contains('flex')) {
                         window.renderAdminScratch();
+                        window.renderAdminInviteCodes();
                     }
                 }, (error) => {
                     console.error(error);
