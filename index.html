@@ -349,6 +349,19 @@
             return ADMIN_MEMBERS.map(name => ({ name: name, status: 'unpaid', amount: 0, isLeader: name === '전시기' }));
         }
 
+        function getKoreaDateKey(date = new Date()) {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(date).reduce((result, part) => {
+                if (part.type !== 'literal') result[part.type] = part.value;
+                return result;
+            }, {});
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        }
+
         function getInitialMeetingData() {
             return {
                 totalBalance: 448999,
@@ -676,6 +689,7 @@
                     m.status = 'stopped';
                 }
                 m.amount = 0;
+                delete m.paidDate;
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
                 window.openAdminModalReal();
@@ -697,6 +711,7 @@
                     m.status = 'deferred';
                     m.amount = 0;
                 }
+                delete m.paidDate;
                 totalBalanceInput.value = currentBalance;
                 window.meetingData.totalBalance = currentBalance;
                 window.openAdminModalReal();
@@ -717,9 +732,11 @@
                     currentBalance -= m.amount;
                     m.status = 'unpaid';
                     m.amount = 0;
+                    delete m.paidDate;
                 } else {
                     m.status = 'paid';
                     m.amount = (isNaN(inputAmount) || inputAmount === 0) ? 20000 : inputAmount;
+                    m.paidDate = getKoreaDateKey();
                     currentBalance += m.amount;
                 }
                 totalBalanceInput.value = currentBalance;
