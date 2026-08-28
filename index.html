@@ -156,12 +156,12 @@
             <div id="tab-ads" class="admin-tab-panel hidden">
                 <div class="grid grid-cols-3 gap-2 mb-3">
                     <div class="ledger-summary-card">
-                        <span class="block text-[9px] font-bold text-gray-500 mb-1">전체 클릭</span>
-                        <strong id="ad-click-summary-total" class="text-[16px] text-blue-400">0회</strong>
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">오늘 클릭</span>
+                        <strong id="ad-click-summary-today" class="text-[16px] text-amber-400">0회</strong>
                     </div>
                     <div class="ledger-summary-card">
-                        <span class="block text-[9px] font-bold text-gray-500 mb-1">클릭 멤버</span>
-                        <strong id="ad-click-summary-members" class="text-[16px] text-white">0명</strong>
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">누적 클릭</span>
+                        <strong id="ad-click-summary-total" class="text-[16px] text-blue-400">0회</strong>
                     </div>
                     <div class="ledger-summary-card">
                         <span class="block text-[9px] font-bold text-gray-500 mb-1">최근 기록</span>
@@ -170,7 +170,7 @@
                 </div>
                 <div class="flex items-start gap-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 mb-3">
                     <i class="fa-solid fa-circle-info text-blue-400 text-[11px] mt-0.5"></i>
-                    <p class="text-[10px] text-gray-400 leading-relaxed">광고 iframe 선택 직후 화면이 이동한 경우를 기록한 추정 통계입니다. 홈·커뮤니티·모임통장 광고를 구분해 표시합니다.</p>
+                    <p class="text-[10px] text-gray-400 leading-relaxed">광고 iframe 선택 직후 화면이 이동한 경우를 기록한 추정 통계입니다. 오늘 클릭은 한국시간 자정마다 0회부터 다시 집계되고 누적 클릭은 계속 유지됩니다.</p>
                 </div>
                 <div id="admin-ad-click-list" class="space-y-2.5"></div>
             </div>
@@ -651,17 +651,19 @@
                 if (member && member.name) byName[member.name] = member;
             });
 
+            const todayKey = getKoreaDateKey();
             let totalClicks = 0;
-            let clickedMembers = 0;
+            let todayClicks = 0;
             let lastClickAt = 0;
             let lastClickName = '';
             ADMIN_AD_MEMBERS.forEach(name => {
                 const member = byName[name];
                 if (!member) return;
                 const count = Math.max(0, Number(member.adClickCount) || 0);
+                const memberToday = Math.max(0, Number(member.adClicksByDate && member.adClicksByDate[todayKey]) || 0);
                 const clickedAt = adminScratchMillis(member.adClickLastAt);
                 totalClicks += count;
-                if (count > 0) clickedMembers += 1;
+                todayClicks += memberToday;
                 if (clickedAt > lastClickAt) {
                     lastClickAt = clickedAt;
                     lastClickName = name;
@@ -669,10 +671,10 @@
             });
 
             const totalEl = document.getElementById('ad-click-summary-total');
-            const membersEl = document.getElementById('ad-click-summary-members');
+            const todayEl = document.getElementById('ad-click-summary-today');
             const lastEl = document.getElementById('ad-click-summary-last');
             if (totalEl) totalEl.textContent = `${totalClicks.toLocaleString('ko-KR')}회`;
-            if (membersEl) membersEl.textContent = `${clickedMembers}명`;
+            if (todayEl) todayEl.textContent = `${todayClicks.toLocaleString('ko-KR')}회`;
             if (lastEl) lastEl.textContent = lastClickAt ? `${lastClickName} · ${adminAdClickDate(lastClickAt)}` : '없음';
 
             wrap.innerHTML = ADMIN_AD_MEMBERS.map(name => {
@@ -690,6 +692,7 @@
 
                 const byPlacement = member.adClicksByPlacement || {};
                 const total = Math.max(0, Number(member.adClickCount) || 0);
+                const today = Math.max(0, Number(member.adClicksByDate && member.adClicksByDate[todayKey]) || 0);
                 const home = Math.max(0, Number(byPlacement.home) || 0);
                 const community = Math.max(0, Number(byPlacement.community) || 0);
                 const meeting = Math.max(0, Number(byPlacement.meeting) || 0);
@@ -701,7 +704,10 @@
                             <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
                             <span class="block text-[9px] text-gray-600 mt-0.5 truncate">${lastAt ? `최근 ${adminAdClickDate(lastAt)}` : '아직 클릭 기록 없음'}</span>
                         </div>
-                        <strong class="text-[18px] text-blue-400 shrink-0">${total.toLocaleString('ko-KR')}<span class="text-[10px] ml-0.5">회</span></strong>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span class="px-2 py-1 rounded-lg bg-amber-500/10 text-[10px] font-bold text-amber-400">오늘 ${today.toLocaleString('ko-KR')}회</span>
+                            <span class="px-2 py-1 rounded-lg bg-blue-500/10 text-[10px] font-bold text-blue-400">누적 ${total.toLocaleString('ko-KR')}회</span>
+                        </div>
                     </div>
                     <div class="grid grid-cols-3 gap-2">
                         <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">홈</span><strong class="text-[12px] text-gray-200">${home.toLocaleString('ko-KR')}회</strong></div>
@@ -786,6 +792,9 @@
         window.setInterval(function() {
             if (window.adminActiveTab === 'scratch') window.renderAdminScratch();
         }, 1000);
+        window.setInterval(function() {
+            if (window.adminActiveTab === 'ads') window.renderAdminAdClicks();
+        }, 60000);
 
         window.updateExemption = function(name, delta) {
             const el = document.getElementById(`admin-ticket-${name}`);
