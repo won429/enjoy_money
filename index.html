@@ -177,6 +177,21 @@
 
             <!-- ===== 설정 탭 ===== -->
             <div id="tab-settings" class="admin-tab-panel hidden">
+                <!-- 공지 알림 하트 -->
+                <div class="mb-5">
+                    <label class="sec-label text-red-400 block mb-2"><i class="fa-regular fa-heart mr-1"></i>홈 공지 알림</label>
+                    <div class="flex items-center justify-between gap-3 bg-[#242426] border border-white/5 rounded-xl px-3.5 py-3">
+                        <div class="min-w-0">
+                            <strong class="block text-[11.5px] text-gray-200">공지 하트 빨간색 채우기</strong>
+                            <span id="admin-notice-alert-description" class="block text-[10px] text-gray-500 mt-0.5 leading-snug">현재 꺼져 있습니다.</span>
+                        </div>
+                        <button id="admin-notice-alert-toggle" type="button" role="switch" aria-checked="false" onclick="window.toggleNoticeAlert()" class="relative w-12 h-7 rounded-full bg-[#3A3A3C] transition-colors shrink-0 disabled:opacity-40" disabled>
+                            <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+                        </button>
+                    </div>
+                    <p class="text-[9.5px] text-gray-600 mt-1.5 leading-snug">켜면 앱 홈의 공지 하트가 빨간색으로 채워지고, 끄면 테두리 하트로 표시됩니다.</p>
+                </div>
+
                 <!-- 멤버 포인트 지급 -->
                 <div class="mb-5">
                     <label class="sec-label text-amber-400 block mb-2"><i class="fa-solid fa-coins mr-1"></i>멤버 포인트 지급</label>
@@ -237,6 +252,8 @@
         window.scheduleData = {};
         window._adminLedgerMeetingKey = '';
         window.adminScratchMembers = [];
+        window.adminNoticeAlertEnabled = false;
+        window.adminNoticeAlertReady = false;
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
         const ADMIN_AD_MEMBERS = [...ADMIN_MEMBERS, '관리자'];
@@ -255,6 +272,22 @@
             }, 0);
         };
         window.markLedgerDirty = function() { window._ledgerDirty = true; };
+
+        window.renderAdminNoticeAlert = function() {
+            const toggle = document.getElementById('admin-notice-alert-toggle');
+            const description = document.getElementById('admin-notice-alert-description');
+            const enabled = window.adminNoticeAlertEnabled === true;
+            if (toggle) {
+                toggle.disabled = !window.adminNoticeAlertReady;
+                toggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+                toggle.style.backgroundColor = enabled ? '#EF4444' : '#3A3A3C';
+                const knob = toggle.querySelector('span');
+                if (knob) knob.style.transform = enabled ? 'translateX(1.25rem)' : 'translateX(0)';
+            }
+            if (description) description.textContent = window.adminNoticeAlertReady
+                ? (enabled ? '현재 켜져 있습니다.' : '현재 꺼져 있습니다.')
+                : 'Firebase 연결을 기다리는 중입니다.';
+        };
 
         const adminDateFromKey = (value) => {
             const parts = String(value || '').split('-').map(Number);
@@ -445,6 +478,7 @@
             document.getElementById('admin-month-title').innerText = window.currentDuesMonth;
             document.getElementById('admin-total-balance').value = window.meetingData.totalBalance || 0;
             document.getElementById('admin-notice-input').value = window.meetingData.notice || '';
+            window.renderAdminNoticeAlert();
 
             // 멤버별 납부
             const list = document.getElementById('admin-member-list');
@@ -1123,6 +1157,7 @@
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
         window.BACKUP_PATH = ['meeting_account', 'backups', 'history'];
+        window.NOTICE_ALERT_PATH = ['app_settings', 'notice_alert'];
         window.doc = doc;
         window.setDoc = setDoc;
 
@@ -1136,6 +1171,7 @@
             let meetingUnsub = null;
             let scheduleUnsub = null;
             let membersUnsub = null;
+            let noticeAlertUnsub = null;
             let isFirstLoad = true;
 
             const setDbStatus = (text, connected) => {
@@ -1185,6 +1221,17 @@
                     console.error(error);
                     window.adminDbReady = false;
                     setDbStatus('권한 확인', false);
+                });
+                if (!noticeAlertUnsub) noticeAlertUnsub = onSnapshot(doc(window.meetingDb, ...window.NOTICE_ALERT_PATH), (docSnap) => {
+                    const data = docSnap.exists() ? (docSnap.data() || {}) : {};
+                    window.adminNoticeAlertEnabled = data.enabled === true;
+                    window.adminNoticeAlertReady = true;
+                    window.renderAdminNoticeAlert();
+                }, (error) => {
+                    console.error(error);
+                    window.adminNoticeAlertReady = false;
+                    window.renderAdminNoticeAlert();
+                    setDbStatus('공지 권한 확인', false);
                 });
                 if (!scheduleUnsub) scheduleUnsub = onSnapshot(doc(window.meetingDb, ...window.SCHEDULE_PATH), (docSnap) => {
                     window.scheduleData = docSnap.exists() ? (docSnap.data() || {}) : {};
@@ -1237,6 +1284,31 @@
                     setDbStatus('DB 로그인', false);
                     if (error && error.code !== 'auth/popup-closed-by-user') alert('Google 로그인에 실패했습니다.');
                     return null;
+                }
+            };
+
+            window.toggleNoticeAlert = async function() {
+                if (!window.adminDbReady) {
+                    const user = await window.adminFirebaseLogin();
+                    if (!user) return;
+                }
+                const nextEnabled = window.adminNoticeAlertEnabled !== true;
+                window.adminNoticeAlertReady = false;
+                window.renderAdminNoticeAlert();
+                try {
+                    await setDoc(doc(window.meetingDb, ...window.NOTICE_ALERT_PATH), {
+                        enabled: nextEnabled,
+                        updatedAt: Date.now(),
+                        updatedBy: (meetingAuth.currentUser && (meetingAuth.currentUser.email || meetingAuth.currentUser.uid)) || 'admin'
+                    }, { merge: true });
+                    window.adminNoticeAlertEnabled = nextEnabled;
+                    window.adminNoticeAlertReady = true;
+                    window.renderAdminNoticeAlert();
+                } catch (error) {
+                    console.error(error);
+                    window.adminNoticeAlertReady = true;
+                    window.renderAdminNoticeAlert();
+                    alert('공지 알림 상태를 변경하지 못했습니다. Firebase 권한을 확인해 주세요.');
                 }
             };
 
