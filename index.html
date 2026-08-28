@@ -32,6 +32,8 @@
         .scratch-admin-result { background:#1c1c1e; border:1px solid rgba(255,255,255,.06); border-radius:12px; }
         .scratch-admin-dot { width:7px; height:7px; border-radius:999px; flex:none; }
         .scratch-admin-action:disabled { opacity:.32; cursor:not-allowed; }
+        .ad-click-member-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:16px; }
+        .ad-click-place { background:#1c1c1e; border:1px solid rgba(255,255,255,.05); border-radius:11px; }
         input[type="date"] { color-scheme:dark; min-width:0; }
         input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
     </style>
@@ -69,10 +71,11 @@
 
         <!-- Tab bar (segmented control) -->
         <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0">
-            <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-1 text-[11px]"></i>납부현황</button>
-            <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-1 text-[11px]"></i>가계부</button>
-            <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-[11px]"></i>스크래치</button>
-            <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[12.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-1 text-[11px]"></i>설정</button>
+            <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-0.5 text-[10px]"></i>납부</button>
+            <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-0.5 text-[10px]"></i>가계부</button>
+            <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-0.5 text-[10px]"></i>스크래치</button>
+            <button data-tab="ads" onclick="window.switchAdminTab('ads')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-rectangle-ad mr-0.5 text-[10px]"></i>광고</button>
+            <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-0.5 text-[10px]"></i>설정</button>
         </div>
 
         <!-- Content -->
@@ -148,6 +151,29 @@
                 <div id="admin-scratch-list" class="space-y-2.5"></div>
             </div>
 
+            <!-- ===== 광고 클릭 통계 탭 ===== -->
+            <div id="tab-ads" class="admin-tab-panel hidden">
+                <div class="grid grid-cols-3 gap-2 mb-3">
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">전체 클릭</span>
+                        <strong id="ad-click-summary-total" class="text-[16px] text-blue-400">0회</strong>
+                    </div>
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">클릭 멤버</span>
+                        <strong id="ad-click-summary-members" class="text-[16px] text-white">0명</strong>
+                    </div>
+                    <div class="ledger-summary-card">
+                        <span class="block text-[9px] font-bold text-gray-500 mb-1">최근 기록</span>
+                        <strong id="ad-click-summary-last" class="block text-[10px] leading-tight text-emerald-400">없음</strong>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 mb-3">
+                    <i class="fa-solid fa-circle-info text-blue-400 text-[11px] mt-0.5"></i>
+                    <p class="text-[10px] text-gray-400 leading-relaxed">광고 iframe 선택 직후 화면이 이동한 경우를 기록한 추정 통계입니다. 홈·커뮤니티·모임통장 광고를 구분해 표시합니다.</p>
+                </div>
+                <div id="admin-ad-click-list" class="space-y-2.5"></div>
+            </div>
+
             <!-- ===== 설정 탭 ===== -->
             <div id="tab-settings" class="admin-tab-panel hidden">
                 <!-- 친구 초대 코드 -->
@@ -202,6 +228,7 @@
         window.adminScratchMembers = [];
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
+        const ADMIN_AD_MEMBERS = [...ADMIN_MEMBERS, '관리자'];
         const ADMIN_SCRATCH_CARDS = [
             { id: 'penalty-waiver', key: 'penaltyWaiver', title: '부과금 면제권', color: '#43B7A5', icon: 'fa-ticket-simple' },
             { id: 'baemin-gift', key: 'baeminGift', title: '배달의민족 상품권', color: '#F28C18', icon: 'fa-utensils' },
@@ -376,7 +403,7 @@
             // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
-            ['dues', 'expense', 'scratch', 'settings'].forEach(t => {
+            ['dues', 'expense', 'scratch', 'ads', 'settings'].forEach(t => {
                 const panel = document.getElementById('tab-' + t);
                 if (panel) panel.classList.toggle('hidden', t !== name);
             });
@@ -387,8 +414,9 @@
                 btn.classList.toggle('text-gray-400', !active);
             });
             const saveFooter = document.getElementById('admin-save-footer');
-            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch');
+            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads');
             if (name === 'scratch') window.renderAdminScratch();
+            if (name === 'ads') window.renderAdminAdClicks();
         };
 
         window.changeAdminMonth = function(delta) {
@@ -441,6 +469,7 @@
             window.renderLedgerMeetingControl();
             window.renderExpenseList();
             window.renderAdminScratch();
+            window.renderAdminAdClicks();
             window.renderAdminInviteCodes();
 
             // 현재 탭 상태 유지
@@ -591,6 +620,82 @@
                         <span class="px-2 py-1 rounded-lg bg-white/5 text-[9px] font-bold text-gray-500">상품별 독립</span>
                     </div>
                     <div class="p-2.5 space-y-2">${resultHtml}</div>
+                </div>`;
+            }).join('');
+        };
+
+        function adminAdClickDate(value) {
+            const millis = adminScratchMillis(value);
+            if (!millis) return '기록 없음';
+            const date = new Date(millis);
+            return `${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+
+        window.renderAdminAdClicks = function() {
+            const wrap = document.getElementById('admin-ad-click-list');
+            if (!wrap) return;
+            const byName = {};
+            (window.adminScratchMembers || []).forEach(member => {
+                if (member && member.name) byName[member.name] = member;
+            });
+
+            let totalClicks = 0;
+            let clickedMembers = 0;
+            let lastClickAt = 0;
+            let lastClickName = '';
+            ADMIN_AD_MEMBERS.forEach(name => {
+                const member = byName[name];
+                if (!member) return;
+                const count = Math.max(0, Number(member.adClickCount) || 0);
+                const clickedAt = adminScratchMillis(member.adClickLastAt);
+                totalClicks += count;
+                if (count > 0) clickedMembers += 1;
+                if (clickedAt > lastClickAt) {
+                    lastClickAt = clickedAt;
+                    lastClickName = name;
+                }
+            });
+
+            const totalEl = document.getElementById('ad-click-summary-total');
+            const membersEl = document.getElementById('ad-click-summary-members');
+            const lastEl = document.getElementById('ad-click-summary-last');
+            if (totalEl) totalEl.textContent = `${totalClicks.toLocaleString('ko-KR')}회`;
+            if (membersEl) membersEl.textContent = `${clickedMembers}명`;
+            if (lastEl) lastEl.textContent = lastClickAt ? `${lastClickName} · ${adminAdClickDate(lastClickAt)}` : '없음';
+
+            wrap.innerHTML = ADMIN_AD_MEMBERS.map(name => {
+                const member = byName[name];
+                if (!member) {
+                    return `
+                    <div class="ad-click-member-card px-3.5 py-3 flex items-center justify-between gap-3">
+                        <div>
+                            <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                            <span class="text-[10px] text-gray-600">Firebase 가입 정보 없음</span>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg bg-white/5 text-[10px] font-bold text-gray-600">미가입</span>
+                    </div>`;
+                }
+
+                const byPlacement = member.adClicksByPlacement || {};
+                const total = Math.max(0, Number(member.adClickCount) || 0);
+                const home = Math.max(0, Number(byPlacement.home) || 0);
+                const community = Math.max(0, Number(byPlacement.community) || 0);
+                const meeting = Math.max(0, Number(byPlacement.meeting) || 0);
+                const lastAt = adminScratchMillis(member.adClickLastAt);
+                return `
+                <div class="ad-click-member-card p-3.5">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div class="min-w-0">
+                            <strong class="block text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                            <span class="block text-[9px] text-gray-600 mt-0.5 truncate">${lastAt ? `최근 ${adminAdClickDate(lastAt)}` : '아직 클릭 기록 없음'}</span>
+                        </div>
+                        <strong class="text-[18px] text-blue-400 shrink-0">${total.toLocaleString('ko-KR')}<span class="text-[10px] ml-0.5">회</span></strong>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">홈</span><strong class="text-[12px] text-gray-200">${home.toLocaleString('ko-KR')}회</strong></div>
+                        <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">커뮤니티</span><strong class="text-[12px] text-gray-200">${community.toLocaleString('ko-KR')}회</strong></div>
+                        <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">모임통장</span><strong class="text-[12px] text-gray-200">${meeting.toLocaleString('ko-KR')}회</strong></div>
+                    </div>
                 </div>`;
             }).join('');
         };
@@ -1049,6 +1154,7 @@
                     window.adminScratchMembers = members;
                     if (document.getElementById('admin-screen').classList.contains('flex')) {
                         window.renderAdminScratch();
+                        window.renderAdminAdClicks();
                         window.renderAdminInviteCodes();
                     }
                 }, (error) => {
