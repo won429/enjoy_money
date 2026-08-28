@@ -34,6 +34,7 @@
         .scratch-admin-action:disabled { opacity:.32; cursor:not-allowed; }
         .ad-click-member-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:16px; }
         .ad-click-place { background:#1c1c1e; border:1px solid rgba(255,255,255,.05); border-radius:11px; }
+        .admin-point-row { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:14px; }
         input[type="date"] { color-scheme:dark; min-width:0; }
         input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
     </style>
@@ -176,6 +177,16 @@
 
             <!-- ===== 설정 탭 ===== -->
             <div id="tab-settings" class="admin-tab-panel hidden">
+                <!-- 멤버 포인트 지급 -->
+                <div class="mb-5">
+                    <label class="sec-label text-amber-400 block mb-2"><i class="fa-solid fa-coins mr-1"></i>멤버 포인트 지급</label>
+                    <div class="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-2.5">
+                        <i class="fa-solid fa-circle-info text-amber-400 text-[11px] mt-0.5"></i>
+                        <p class="text-[10px] text-gray-400 leading-relaxed">지급할 포인트를 입력하면 해당 멤버의 보유 포인트에 즉시 더해집니다.</p>
+                    </div>
+                    <div id="admin-point-list" class="space-y-2"></div>
+                </div>
+
                 <!-- 친구 초대 코드 -->
                 <div class="mb-5">
                     <label class="sec-label text-emerald-400 block mb-2"><i class="fa-solid fa-user-group mr-1"></i>친구 초대 코드</label>
@@ -470,6 +481,7 @@
             window.renderExpenseList();
             window.renderAdminScratch();
             window.renderAdminAdClicks();
+            window.renderAdminPoints();
             window.renderAdminInviteCodes();
 
             // 현재 탭 상태 유지
@@ -695,6 +707,38 @@
                         <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">홈</span><strong class="text-[12px] text-gray-200">${home.toLocaleString('ko-KR')}회</strong></div>
                         <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">커뮤니티</span><strong class="text-[12px] text-gray-200">${community.toLocaleString('ko-KR')}회</strong></div>
                         <div class="ad-click-place px-2 py-2 text-center"><span class="block text-[9px] text-gray-500 mb-0.5">모임통장</span><strong class="text-[12px] text-gray-200">${meeting.toLocaleString('ko-KR')}회</strong></div>
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
+        window.renderAdminPoints = function() {
+            const wrap = document.getElementById('admin-point-list');
+            if (!wrap) return;
+            const byName = {};
+            (window.adminScratchMembers || []).forEach(member => {
+                if (member && member.name) byName[member.name] = member;
+            });
+
+            wrap.innerHTML = ADMIN_MEMBERS.map(name => {
+                const member = byName[name];
+                if (!member) {
+                    return `
+                    <div class="admin-point-row px-3.5 py-3 flex items-center justify-between gap-3">
+                        <strong class="text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                        <span class="text-[10px] font-bold text-gray-600">미가입</span>
+                    </div>`;
+                }
+                const points = Math.max(0, Math.floor(Number(member.points) || 0));
+                return `
+                <div class="admin-point-row px-3.5 py-3">
+                    <div class="flex items-center justify-between gap-3 mb-2.5">
+                        <strong class="text-sm text-[#F2F4F6]">${escHtml(name)}</strong>
+                        <span class="text-[12px] font-black text-amber-400">${points.toLocaleString('ko-KR')} P</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input id="admin-point-input-${member.uid}" type="number" inputmode="numeric" min="1" max="1000000" step="1" placeholder="지급할 포인트" onkeydown="if(event.key==='Enter')window.grantMemberPoints('${member.uid}', '${escAttr(name)}')" class="fld min-w-0 flex-1 px-3 py-2 text-[11px] text-right">
+                        <button type="button" onclick="window.grantMemberPoints('${member.uid}', '${escAttr(name)}')" class="h-9 px-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold active:scale-95 transition-transform">지급</button>
                     </div>
                 </div>`;
             }).join('');
@@ -1065,7 +1109,7 @@
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
@@ -1155,6 +1199,7 @@
                     if (document.getElementById('admin-screen').classList.contains('flex')) {
                         window.renderAdminScratch();
                         window.renderAdminAdClicks();
+                        window.renderAdminPoints();
                         window.renderAdminInviteCodes();
                     }
                 }, (error) => {
@@ -1183,6 +1228,32 @@
                     setDbStatus('DB 로그인', false);
                     if (error && error.code !== 'auth/popup-closed-by-user') alert('Google 로그인에 실패했습니다.');
                     return null;
+                }
+            };
+
+            window.grantMemberPoints = async function(uid, memberName) {
+                const input = document.getElementById(`admin-point-input-${uid}`);
+                const amount = Math.floor(Number(input && input.value));
+                if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) {
+                    alert('1~1,000,000 사이의 지급 포인트를 입력해 주세요.');
+                    if (input) input.focus();
+                    return;
+                }
+                if (!window.adminDbReady) {
+                    const user = await window.adminFirebaseLogin();
+                    if (!user) return;
+                }
+                if (!confirm(`${memberName}님에게 ${amount.toLocaleString('ko-KR')}포인트를 지급할까요?\n지급 즉시 앱에 반영됩니다.`)) return;
+                try {
+                    await updateDoc(doc(window.meetingDb, 'members', uid), {
+                        points: increment(amount),
+                        pointsUpdatedAt: Date.now()
+                    });
+                    if (input) input.value = '';
+                    alert(`${memberName}님에게 ${amount.toLocaleString('ko-KR')}포인트를 지급했습니다.`);
+                } catch (error) {
+                    console.error(error);
+                    alert('포인트를 지급하지 못했습니다. Firebase 권한을 확인해 주세요.');
                 }
             };
 
