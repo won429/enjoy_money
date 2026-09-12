@@ -190,6 +190,16 @@
                                 <span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
                             </button>
                         </div>
+                        <div class="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-white/5">
+                            <div class="min-w-0">
+                                <strong class="block text-[11.5px] text-gray-200">성원제 리뉴얼 화면</strong>
+                                <span class="block text-[10px] text-gray-500 mt-0.5 leading-snug">제외하면 리뉴얼 중에도 앱을 이용할 수 있습니다.</span>
+                            </div>
+                            <div class="flex gap-1 shrink-0" role="group" aria-label="성원제 리뉴얼 화면 표시 여부">
+                                <button id="admin-renovation-include" type="button" aria-pressed="true" onclick="window.setAdminRenovationExclusion(false)" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40" disabled>포함</button>
+                                <button id="admin-renovation-exclude" type="button" aria-pressed="false" onclick="window.setAdminRenovationExclusion(true)" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40" disabled>제외</button>
+                            </div>
+                        </div>
                         <div class="mt-4 pt-3 border-t border-white/5">
                             <div class="flex items-center justify-between mb-2">
                                 <label for="admin-renovation-progress" class="text-[11px] font-bold text-gray-300">완료까지 진행률</label>
@@ -279,7 +289,7 @@
         window.adminScratchMembers = [];
         window.adminNoticeAlertEnabled = false;
         window.adminNoticeAlertReady = false;
-        window.adminRenovationStatus = { enabled: false, progress: 0 };
+        window.adminRenovationStatus = { enabled: false, progress: 0, excludeSeongwonje: false };
         window.adminRenovationReady = false;
         window.adminRenovationSaving = false;
         window.adminRenovationDraftProgress = 0;
@@ -324,6 +334,8 @@
             const enabled = status.enabled === true;
             const ready = window.adminRenovationReady && !window.adminRenovationSaving;
             const toggle = document.getElementById('admin-renovation-toggle');
+            const includeButton = document.getElementById('admin-renovation-include');
+            const excludeButton = document.getElementById('admin-renovation-exclude');
             const description = document.getElementById('admin-renovation-description');
             const slider = document.getElementById('admin-renovation-progress');
             const value = document.getElementById('admin-renovation-progress-value');
@@ -336,6 +348,13 @@
                 const knob = toggle.querySelector('span');
                 if (knob) knob.style.transform = enabled ? 'translateX(1.25rem)' : 'translateX(0)';
             }
+            [[includeButton, !status.excludeSeongwonje], [excludeButton, !!status.excludeSeongwonje]].forEach(([button, active]) => {
+                if (!button) return;
+                button.disabled = !ready;
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                button.style.backgroundColor = active ? '#3182F6' : '#3A3A3C';
+                button.style.color = active ? '#FFF' : '#B8B8BD';
+            });
             if (description) description.textContent = window.adminRenovationSaving ? 'Firebase에 저장하는 중입니다.'
                 : !window.adminRenovationReady ? 'Firebase 연결을 기다리는 중입니다.'
                 : enabled ? '켜짐 · 앱에서 리뉴얼 화면을 표시합니다.' : '꺼짐 · 앱을 정상적으로 사용할 수 있습니다.';
@@ -1302,7 +1321,8 @@
                     const rawProgress = Number(data.progress);
                     window.adminRenovationStatus = {
                         enabled: data.enabled === true,
-                        progress: Number.isFinite(rawProgress) ? Math.max(0, Math.min(100, Math.round(rawProgress))) : 0
+                        progress: Number.isFinite(rawProgress) ? Math.max(0, Math.min(100, Math.round(rawProgress))) : 0,
+                        excludeSeongwonje: data.excludeSeongwonje === true
                     };
                     window.adminRenovationReady = true;
                     if (!window.adminRenovationProgressDirty) window.adminRenovationDraftProgress = window.adminRenovationStatus.progress;
@@ -1408,6 +1428,29 @@
                 } catch (error) {
                     console.error(error);
                     alert('리뉴얼 화면 상태를 변경하지 못했습니다. Firebase 권한을 확인해 주세요.');
+                } finally {
+                    window.adminRenovationSaving = false;
+                    window.renderAdminRenovation();
+                }
+            };
+
+            window.setAdminRenovationExclusion = async function(exclude) {
+                if (!window.adminRenovationReady || window.adminRenovationSaving) return;
+                const nextExcluded = exclude === true;
+                if (nextExcluded === window.adminRenovationStatus.excludeSeongwonje) return;
+                if (!window.adminDbReady && !await window.adminFirebaseLogin()) return;
+                window.adminRenovationSaving = true;
+                window.renderAdminRenovation();
+                try {
+                    await setDoc(doc(window.meetingDb, ...window.RENOVATION_PATH), {
+                        excludeSeongwonje: nextExcluded,
+                        updatedAt: Date.now(),
+                        updatedBy: (meetingAuth.currentUser && (meetingAuth.currentUser.email || meetingAuth.currentUser.uid)) || 'admin'
+                    }, { merge: true });
+                    window.adminRenovationStatus.excludeSeongwonje = nextExcluded;
+                } catch (error) {
+                    console.error(error);
+                    alert('성원제 포함·제외 설정을 저장하지 못했습니다. Firebase 권한을 확인해 주세요.');
                 } finally {
                     window.adminRenovationSaving = false;
                     window.renderAdminRenovation();
