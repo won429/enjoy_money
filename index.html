@@ -35,6 +35,8 @@
         .ad-click-member-card { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:16px; }
         .ad-click-place { background:#1c1c1e; border:1px solid rgba(255,255,255,.05); border-radius:11px; }
         .admin-point-row { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:14px; }
+        .shop-admin-row { background:#242426; border:1px solid rgba(255,255,255,.07); border-radius:14px; }
+        .shop-admin-row input:disabled { opacity:.45; }
         input[type="date"] { color-scheme:dark; min-width:0; }
         input[type="date"]::-webkit-date-and-time-value { text-align:left; margin:0; }
     </style>
@@ -71,11 +73,12 @@
         </div>
 
         <!-- Tab bar (segmented control) -->
-        <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0">
+        <div class="flex gap-1 bg-[#2C2C2E] p-1 rounded-xl mb-4 shrink-0 overflow-x-auto scrollbar-hide">
             <button data-tab="dues" onclick="window.switchAdminTab('dues')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-coins mr-0.5 text-[10px]"></i>납부</button>
             <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-0.5 text-[10px]"></i>가계부</button>
             <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-0.5 text-[10px]"></i>스크래치</button>
             <button data-tab="ads" onclick="window.switchAdminTab('ads')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-rectangle-ad mr-0.5 text-[10px]"></i>광고</button>
+            <button data-tab="shop" onclick="window.switchAdminTab('shop')" class="admin-tab flex-1 min-w-[47px] py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-bag-shopping mr-0.5 text-[10px]"></i>쇼핑</button>
             <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-0.5 text-[10px]"></i>설정</button>
         </div>
 
@@ -173,6 +176,17 @@
                     <p class="text-[10px] text-gray-400 leading-relaxed">광고 iframe 선택 직후 화면이 이동한 경우를 기록한 추정 통계입니다. 오늘 클릭은 한국시간 자정마다 0회부터 다시 집계되고 누적 클릭은 계속 유지됩니다.</p>
                 </div>
                 <div id="admin-ad-click-list" class="space-y-2.5"></div>
+            </div>
+
+            <!-- ===== 쇼핑 가격 탭 ===== -->
+            <div id="tab-shop" class="admin-tab-panel hidden">
+                <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 mb-3">
+                    <strong class="block text-[11.5px] text-blue-300">쇼핑 가격 관리</strong>
+                    <p class="text-[10px] text-gray-400 mt-1 leading-relaxed">저장하면 앱의 쇼핑 화면에 실시간으로 반영됩니다. 가격은 원 단위입니다.</p>
+                </div>
+                <p id="admin-shop-status" class="text-[10.5px] text-gray-400 mb-3" role="status" aria-live="polite">Firebase 연결을 기다리는 중입니다.</p>
+                <div id="admin-shop-price-list" class="space-y-2.5"></div>
+                <button id="admin-shop-save" type="button" onclick="window.saveAdminShopPrices()" class="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl active:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed" disabled><i class="fa-solid fa-floppy-disk mr-1.5"></i>쇼핑 가격 저장</button>
             </div>
 
             <!-- ===== 설정 탭 ===== -->
@@ -294,6 +308,53 @@
         window.adminRenovationSaving = false;
         window.adminRenovationDraftProgress = 0;
         window.adminRenovationProgressDirty = false;
+        window.adminShopReady = false;
+        window.adminShopSaving = false;
+        window.adminShopDirty = false;
+        window.adminShopData = null;
+
+        const ADMIN_SHOP_PRODUCTS = [
+            { key: 'water', name: '생수 500mL 6병', fallback: 3900 },
+            { key: 'shoes', name: '데일리 스니커즈', fallback: 59000 },
+            { key: 'porkBelly', name: '생삼겹살 600g', fallback: 15900 },
+            { key: 'porkNeck', name: '생목살 600g', fallback: 13900 },
+            { key: 'top', name: '데일리 스웨트셔츠', fallback: 29900 },
+            { key: 'bottom', name: '데일리 코튼 팬츠', fallback: 39900 }
+        ];
+        window.ADMIN_SHOP_PRODUCTS = ADMIN_SHOP_PRODUCTS;
+
+        window.renderAdminShop = function () {
+            const list = document.getElementById('admin-shop-price-list');
+            const status = document.getElementById('admin-shop-status');
+            const save = document.getElementById('admin-shop-save');
+            if (!list || !status || !save) return;
+            const data = window.adminShopData || {};
+            const products = data.products && typeof data.products === 'object' ? data.products : {};
+            if (!list.children.length) {
+                list.innerHTML = ADMIN_SHOP_PRODUCTS.map(function (item) {
+                    return '<label class="shop-admin-row flex items-center justify-between gap-3 px-3.5 py-3">' +
+                        '<span class="min-w-0 text-[11.5px] font-bold text-gray-200">' + item.name + '</span>' +
+                        '<span class="relative w-28 shrink-0"><input id="admin-shop-' + item.key + '" data-shop-price="' + item.key + '" type="number" inputmode="numeric" min="0" max="100000000" step="1" class="fld w-full px-2 py-2 pr-6 text-right text-[12px] font-bold" oninput="window.adminShopDirty=true; window.renderAdminShop()" disabled>' +
+                        '<span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500 pointer-events-none">원</span></span></label>';
+                }).join('');
+            }
+            if (!window.adminShopDirty) {
+                ADMIN_SHOP_PRODUCTS.forEach(function (item) {
+                    const product = products[item.key] && typeof products[item.key] === 'object' ? products[item.key] : {};
+                    const rawPrice = product.price != null ? product.price : data[item.key + 'Price'];
+                    const number = Number(rawPrice);
+                    const input = document.getElementById('admin-shop-' + item.key);
+                    if (input) input.value = rawPrice == null || rawPrice === '' || !Number.isFinite(number) ? item.fallback : Math.round(number);
+                });
+            }
+            list.querySelectorAll('input').forEach(function (input) { input.disabled = !window.adminShopReady || window.adminShopSaving; });
+            save.disabled = !window.adminShopReady || window.adminShopSaving || (!window.adminShopDirty && !!window.adminShopData);
+            if (window.adminShopError) status.textContent = window.adminShopError;
+            else if (!window.adminShopReady) status.textContent = 'Firebase 연결을 기다리는 중입니다.';
+            else if (window.adminShopSaving) status.textContent = 'Firebase에 가격을 저장하는 중입니다.';
+            else if (window.adminShopDirty) status.textContent = '변경한 가격이 아직 저장되지 않았습니다.';
+            else status.textContent = window.adminShopData ? 'Firebase 가격이 동기화되었습니다.' : '첫 저장 전입니다. 표시된 기본 가격을 확인해 주세요.';
+        };
 
         const ADMIN_MEMBERS = ['홍박사', '류짱', '오스틴', '전시기', '이진누', '성원제'];
         const ADMIN_AD_MEMBERS = [...ADMIN_MEMBERS, '관리자'];
@@ -527,7 +588,7 @@
             // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
-            ['dues', 'expense', 'scratch', 'ads', 'settings'].forEach(t => {
+            ['dues', 'expense', 'scratch', 'ads', 'shop', 'settings'].forEach(t => {
                 const panel = document.getElementById('tab-' + t);
                 if (panel) panel.classList.toggle('hidden', t !== name);
             });
@@ -538,9 +599,10 @@
                 btn.classList.toggle('text-gray-400', !active);
             });
             const saveFooter = document.getElementById('admin-save-footer');
-            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads');
+            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads' || name === 'shop');
             if (name === 'scratch') window.renderAdminScratch();
             if (name === 'ads') window.renderAdminAdClicks();
+            if (name === 'shop') window.renderAdminShop();
         };
 
         window.changeAdminMonth = function(delta) {
@@ -1236,6 +1298,7 @@
         import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
+        window.SHOP_PATH = ['meeting_account', 'shop'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
         window.BACKUP_PATH = ['meeting_account', 'backups', 'history'];
         window.NOTICE_ALERT_PATH = ['app_settings', 'notice_alert'];
@@ -1253,6 +1316,7 @@
             let meetingUnsub = null;
             let scheduleUnsub = null;
             let membersUnsub = null;
+            let shopUnsub = null;
             let noticeAlertUnsub = null;
             let renovationUnsub = null;
             let isFirstLoad = true;
@@ -1304,6 +1368,18 @@
                     console.error(error);
                     window.adminDbReady = false;
                     setDbStatus('권한 확인', false);
+                });
+                if (!shopUnsub) shopUnsub = onSnapshot(doc(window.meetingDb, ...window.SHOP_PATH), (docSnap) => {
+                    window.adminShopData = docSnap.exists() ? docSnap.data() : null;
+                    window.adminShopReady = true;
+                    window.adminShopError = '';
+                    window.renderAdminShop();
+                }, (error) => {
+                    console.error('쇼핑 가격 동기화 실패:', error);
+                    shopUnsub = null;
+                    window.adminShopReady = false;
+                    window.adminShopError = '쇼핑 가격을 읽지 못했습니다. Firebase 권한을 확인해 주세요.';
+                    window.renderAdminShop();
                 });
                 if (!noticeAlertUnsub) noticeAlertUnsub = onSnapshot(doc(window.meetingDb, ...window.NOTICE_ALERT_PATH), (docSnap) => {
                     const data = docSnap.exists() ? (docSnap.data() || {}) : {};
@@ -1383,6 +1459,50 @@
                     setDbStatus('DB 로그인', false);
                     if (error && error.code !== 'auth/popup-closed-by-user') alert('Google 로그인에 실패했습니다.');
                     return null;
+                }
+            };
+
+            window.saveAdminShopPrices = async function () {
+                if (window.adminShopSaving || (!window.adminShopDirty && window.adminShopData)) return;
+                if (!meetingAuth.currentUser || meetingAuth.currentUser.isAnonymous) {
+                    const user = await window.adminFirebaseLogin();
+                    if (!user) return;
+                }
+                if (!window.adminShopReady) {
+                    window.adminShopError = '쇼핑 가격을 읽지 못했습니다. Firebase 권한을 확인해 주세요.';
+                    window.renderAdminShop();
+                    return;
+                }
+                const products = {};
+                for (const item of window.ADMIN_SHOP_PRODUCTS) {
+                    const input = document.getElementById('admin-shop-' + item.key);
+                    const raw = input && input.value.trim();
+                    const price = Number(raw);
+                    if (raw === '' || !Number.isSafeInteger(price) || price < 0 || price > 100000000) {
+                        alert(item.name + ' 가격을 0~100,000,000원 사이의 정수로 입력해 주세요.');
+                        if (input) input.focus();
+                        return;
+                    }
+                    products[item.key] = { price };
+                }
+                window.adminShopSaving = true;
+                window.renderAdminShop();
+                try {
+                    await setDoc(doc(window.meetingDb, ...window.SHOP_PATH), {
+                        products,
+                        updatedAt: Date.now(),
+                        updatedBy: meetingAuth.currentUser.email || meetingAuth.currentUser.uid
+                    }, { merge: true });
+                    window.adminShopData = Object.assign({}, window.adminShopData || {}, { products });
+                    window.adminShopDirty = false;
+                    window.adminShopError = '';
+                } catch (error) {
+                    console.error('쇼핑 가격 저장 실패:', error);
+                    window.adminShopError = '저장에 실패했습니다. Firebase 쓰기 권한을 확인해 주세요.';
+                    alert(window.adminShopError);
+                } finally {
+                    window.adminShopSaving = false;
+                    window.renderAdminShop();
                 }
             };
 
@@ -1549,6 +1669,11 @@
                 if (user && !user.isAnonymous) subscribeMeeting();
                 else {
                     window.adminDbReady = false;
+                    window.adminShopReady = false;
+                    window.adminShopData = null;
+                    window.adminShopError = 'Google 로그인 후 쇼핑 가격을 수정할 수 있습니다.';
+                    if (shopUnsub) { shopUnsub(); shopUnsub = null; }
+                    window.renderAdminShop();
                     setDbStatus('DB 로그인', false);
                     if (user && user.isAnonymous) signOut(meetingAuth).catch(() => {});
                 }
