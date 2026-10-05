@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" type="text/css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <link rel="stylesheet" href="admin-store.css?v=20261006">
+
     <style>
         body {
             font-family: 'Pretendard', sans-serif;
@@ -76,6 +78,7 @@
             <button data-tab="expense" onclick="window.switchAdminTab('expense')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-book-open mr-0.5 text-[10px]"></i>가계부</button>
             <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-0.5 text-[10px]"></i>스크래치</button>
             <button data-tab="ads" onclick="window.switchAdminTab('ads')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-rectangle-ad mr-0.5 text-[10px]"></i>광고</button>
+            <button data-tab="store" onclick="window.switchAdminTab('store')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-store mr-0.5 text-[10px]"></i>구매</button>
             <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-0.5 text-[10px]"></i>설정</button>
         </div>
 
@@ -173,6 +176,20 @@
                     <p class="text-[10px] text-gray-400 leading-relaxed">광고 iframe 선택 직후 화면이 이동한 경우를 기록한 추정 통계입니다. 오늘 클릭은 한국시간 자정마다 0회부터 다시 집계되고 누적 클릭은 계속 유지됩니다.</p>
                 </div>
                 <div id="admin-ad-click-list" class="space-y-2.5"></div>
+            </div>
+
+            <!-- ===== 구매 관리 탭 ===== -->
+            <div id="tab-store" class="admin-tab-panel hidden">
+                <h4 class="admin-store-section-title">배민 상품권 지급 대기 <span id="admin-store-pending-count">0건</span></h4>
+                <p class="admin-store-guide">상품권을 보내준 뒤 완료 버튼을 눌러 주세요. 완료 처리하면 해당 멤버의 배민 상품권 재구매 제한이 해제됩니다.</p>
+                <p id="admin-store-status" role="status"></p>
+                <div id="admin-store-pending" aria-live="polite"></div>
+                <div class="admin-store-history-section">
+                    <h4 class="admin-store-section-title">멤버별 구매 내역</h4>
+                    <label for="admin-store-member" class="sr-only">구매 내역을 볼 멤버</label>
+                    <select id="admin-store-member" class="fld w-full px-3 py-2.5 text-xs" onchange="window.renderAdminStore()"><option value="">전체 멤버</option></select>
+                    <div id="admin-store-history"></div>
+                </div>
             </div>
 
             <!-- ===== 설정 탭 ===== -->
@@ -526,7 +543,7 @@
             // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
-            ['dues', 'expense', 'scratch', 'ads', 'settings'].forEach(t => {
+            ['dues', 'expense', 'scratch', 'ads', 'store', 'settings'].forEach(t => {
                 const panel = document.getElementById('tab-' + t);
                 if (panel) panel.classList.toggle('hidden', t !== name);
             });
@@ -537,9 +554,10 @@
                 btn.classList.toggle('text-gray-400', !active);
             });
             const saveFooter = document.getElementById('admin-save-footer');
-            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads');
+            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads' || name === 'store');
             if (name === 'scratch') window.renderAdminScratch();
             if (name === 'ads') window.renderAdminAdClicks();
+            if (name === 'store') { window.startAdminStore(); window.renderAdminStore(); }
         };
 
         window.changeAdminMonth = function(delta) {
@@ -1228,11 +1246,13 @@
         };
     </script>
 
+    <script src="admin-store.js?v=20261006"></script>
+
     <!-- Firebase Module -->
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
@@ -1249,6 +1269,12 @@
             const meetingAuth = getAuth(meetingApp);
             window.meetingDb = getFirestore(meetingApp);
             window.adminDbReady = false;
+            window.adminStoreDb = {
+                user: () => meetingAuth.currentUser && !meetingAuth.currentUser.isAnonymous ? meetingAuth.currentUser : null,
+                doc: (...parts) => doc(window.meetingDb, ...parts),
+                subscribe: (next, fail) => onSnapshot(collection(window.meetingDb, 'store_orders'), next, fail),
+                transaction: callback => runTransaction(window.meetingDb, callback)
+            };
             let meetingUnsub = null;
             let scheduleUnsub = null;
             let membersUnsub = null;
@@ -1270,6 +1296,7 @@
             const subscribeMeeting = () => {
                 window.adminDbReady = true;
                 setDbStatus('DB 연결됨', true);
+                window.startAdminStore();
                 if (!meetingUnsub) meetingUnsub = onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -1350,6 +1377,7 @@
                         members.push(value);
                     });
                     window.adminScratchMembers = members;
+                    window.renderAdminStore();
                     if (document.getElementById('admin-screen').classList.contains('flex')) {
                         window.renderAdminScratch();
                         window.renderAdminAdClicks();
@@ -1549,6 +1577,7 @@
                 else {
                     window.adminDbReady = false;
                     setDbStatus('DB 로그인', false);
+                    window.stopAdminStore();
                     if (user && user.isAnonymous) signOut(meetingAuth).catch(() => {});
                 }
             });
