@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <link rel="stylesheet" href="admin-store.css?v=20261006">
+    <link rel="stylesheet" href="admin-consultation.css?v=20261024-1">
 
     <style>
         body {
@@ -79,6 +80,7 @@
             <button data-tab="scratch" onclick="window.switchAdminTab('scratch')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-wand-magic-sparkles mr-0.5 text-[10px]"></i>스크래치</button>
             <button data-tab="ads" onclick="window.switchAdminTab('ads')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-rectangle-ad mr-0.5 text-[10px]"></i>광고</button>
             <button data-tab="store" onclick="window.switchAdminTab('store')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-store mr-0.5 text-[10px]"></i>구매</button>
+            <button data-tab="consultation" onclick="window.switchAdminTab('consultation')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-phone mr-0.5 text-[10px]"></i>상담</button>
             <button data-tab="settings" onclick="window.switchAdminTab('settings')" class="admin-tab flex-1 py-2 rounded-lg text-[10.5px] font-bold transition-colors"><i class="fa-solid fa-gear mr-0.5 text-[10px]"></i>설정</button>
         </div>
 
@@ -190,6 +192,21 @@
                     <select id="admin-store-member" class="fld w-full px-3 py-2.5 text-xs" onchange="window.renderAdminStore()"><option value="">전체 멤버</option></select>
                     <div id="admin-store-history"></div>
                 </div>
+            </div>
+
+            <!-- ===== 상담 예약 관리 탭 ===== -->
+            <div id="tab-consultation" class="admin-tab-panel hidden">
+                <h4 class="consultation-admin-title">전화 상담 예약 현황</h4>
+                <p class="consultation-admin-guide">신청자가 선택한 일정과 상담 목적을 확인하고, 연락 후 처리 상태를 저장해 주세요.</p>
+                <p id="admin-consultation-counts">접수 0 · 연락 0 · 완료 0 · 취소 0</p>
+                <div class="consultation-admin-filters">
+                    <label>처리 상태<select id="admin-consultation-filter" class="fld"><option value="">전체 상태</option><option value="pending">접수</option><option value="contacted">연락</option><option value="completed">완료</option><option value="cancelled">취소</option></select></label>
+                    <label>희망 날짜<input id="admin-consultation-date" type="date" class="fld"></label>
+                    <label class="consultation-admin-search">신청자 검색<input id="admin-consultation-search" type="search" class="fld" placeholder="이름 또는 이메일"></label>
+                </div>
+                <div class="consultation-admin-toolbar"><span id="admin-consultation-result-count">총 0건 · 표시 0건</span><button id="admin-consultation-refresh" type="button">새로고침</button></div>
+                <p id="admin-consultation-message" role="status" aria-live="polite"></p>
+                <div id="admin-consultation-list"></div>
             </div>
 
             <!-- ===== 설정 탭 ===== -->
@@ -543,7 +560,7 @@
             // 가계부 탭을 떠날 때 입력값이 사라지지 않도록 먼저 수집
             try { window.collectExpenses(); } catch (e) {}
             window.adminActiveTab = name;
-            ['dues', 'expense', 'scratch', 'ads', 'store', 'settings'].forEach(t => {
+            ['dues', 'expense', 'scratch', 'ads', 'store', 'consultation', 'settings'].forEach(t => {
                 const panel = document.getElementById('tab-' + t);
                 if (panel) panel.classList.toggle('hidden', t !== name);
             });
@@ -554,10 +571,11 @@
                 btn.classList.toggle('text-gray-400', !active);
             });
             const saveFooter = document.getElementById('admin-save-footer');
-            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads' || name === 'store');
+            if (saveFooter) saveFooter.classList.toggle('hidden', name === 'scratch' || name === 'ads' || name === 'store' || name === 'consultation');
             if (name === 'scratch') window.renderAdminScratch();
             if (name === 'ads') window.renderAdminAdClicks();
             if (name === 'store') { window.startAdminStore(); window.renderAdminStore(); }
+            if (name === 'consultation') { window.startAdminConsultation(); window.renderAdminConsultation(); }
         };
 
         window.changeAdminMonth = function(delta) {
@@ -1247,12 +1265,13 @@
     </script>
 
     <script src="admin-store.js?v=20261006"></script>
+    <script src="admin-consultation.js?v=20261024-1"></script>
 
     <!-- Firebase Module -->
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithCustomToken, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, increment, deleteField, addDoc, collection, query, orderBy, limit, getDocs, getDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         window.MEETING_PATH = ['meeting_account', 'dues_status'];
         window.SCHEDULE_PATH = ['meeting_account', 'schedules'];
@@ -1274,6 +1293,13 @@
                 doc: (...parts) => doc(window.meetingDb, ...parts),
                 subscribe: (next, fail) => onSnapshot(collection(window.meetingDb, 'store_orders'), next, fail),
                 transaction: callback => runTransaction(window.meetingDb, callback)
+            };
+            window.adminConsultationDb = {
+                user: () => meetingAuth.currentUser && !meetingAuth.currentUser.isAnonymous ? meetingAuth.currentUser : null,
+                doc: (...parts) => doc(window.meetingDb, ...parts),
+                subscribe: (next, fail) => onSnapshot(query(collection(window.meetingDb, 'consultation_reservations'), orderBy('createdAt', 'desc')), { includeMetadataChanges: true }, next, fail),
+                transaction: callback => runTransaction(window.meetingDb, callback),
+                serverTimestamp
             };
             let meetingUnsub = null;
             let scheduleUnsub = null;
@@ -1297,6 +1323,7 @@
                 window.adminDbReady = true;
                 setDbStatus('DB 연결됨', true);
                 window.startAdminStore();
+                window.startAdminConsultation();
                 if (!meetingUnsub) meetingUnsub = onSnapshot(doc(window.meetingDb, ...window.MEETING_PATH), (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -1578,6 +1605,7 @@
                     window.adminDbReady = false;
                     setDbStatus('DB 로그인', false);
                     window.stopAdminStore();
+                    window.stopAdminConsultation();
                     if (user && user.isAnonymous) signOut(meetingAuth).catch(() => {});
                 }
             });

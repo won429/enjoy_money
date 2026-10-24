@@ -1,0 +1,35 @@
+#tab-consultation .consultation-admin-title { margin: 0 0 6px; color: #f2f4f6; font-size: 15px; font-weight: 750; }
+#tab-consultation .consultation-admin-guide { margin: 0 0 14px; color: #9ca3af; font-size: 11px; line-height: 1.6; }
+#admin-consultation-counts { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #3182f61a; color: #93c5fd; font-size: 11px; font-weight: 650; }
+#tab-consultation .consultation-admin-filters { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); gap: 8px; }
+#tab-consultation .consultation-admin-filters label { min-width: 0; color: #9ca3af; font-size: 10px; }
+#tab-consultation .consultation-admin-filters input, #tab-consultation .consultation-admin-filters select { width: 100%; min-width: 0; min-height: 40px; margin-top: 4px; padding: 8px; font: inherit; font-size: 12px; }
+#tab-consultation .consultation-admin-search { grid-column: 1 / -1; }
+#tab-consultation .consultation-admin-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; }
+#admin-consultation-result-count { color: #9ca3af; font-size: 10px; }
+#admin-consultation-refresh { min-height: 36px; padding: 8px 10px; border-radius: 8px; background: #2c2c2e; color: #93c5fd; font-size: 11px; font-weight: 650; }
+#admin-consultation-message { margin-bottom: 10px; color: #93c5fd; font-size: 11px; line-height: 1.6; }
+#admin-consultation-message:empty { display: none; }
+#tab-consultation .consultation-admin-card { padding: 14px; margin-bottom: 10px; border: 1px solid #ffffff12; border-radius: 14px; background: #242426; }
+#tab-consultation .consultation-admin-heading { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+#tab-consultation .consultation-admin-heading strong { color: #f2f4f6; font-size: 14px; overflow-wrap: anywhere; }
+#tab-consultation .consultation-admin-badge { flex: none; padding: 3px 7px; border-radius: 6px; background: #3182f61f; color: #93c5fd; font-size: 10px; font-weight: 700; }
+#tab-consultation .consultation-admin-badge[data-status="completed"] { background: #34d3991a; color: #6ee7b7; }
+#tab-consultation .consultation-admin-badge[data-status="contacted"] { background: #fbbf241a; color: #fcd34d; }
+#tab-consultation .consultation-admin-badge[data-status="cancelled"] { background: #ffffff0a; color: #9ca3af; }
+#tab-consultation .consultation-admin-email { margin: 4px 0 12px; color: #9ca3af; font-size: 11px; overflow-wrap: anywhere; }
+#tab-consultation dl { margin: 0; }
+#tab-consultation dl div { display: grid; grid-template-columns: 60px minmax(0,1fr); gap: 8px; margin: 6px 0; font-size: 12px; line-height: 1.6; }
+#tab-consultation dt { color: #9ca3af; }
+#tab-consultation dd { margin: 0; color: #f2f4f6; overflow-wrap: anywhere; }
+#tab-consultation dd small { color: #9ca3af; font-size: 9px; }
+#tab-consultation .consultation-admin-purpose { margin-top: 12px; padding: 10px; border-radius: 9px; background: #1c1c1e; }
+#tab-consultation .consultation-admin-purpose strong { color: #9ca3af; font-size: 10px; }
+#tab-consultation .consultation-admin-purpose p { margin: 5px 0 0; color: #e5e7eb; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+#tab-consultation .consultation-admin-meta { margin: 10px 0; color: #9ca3af; font-size: 10px; line-height: 1.6; }
+#tab-consultation .consultation-admin-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+#tab-consultation .consultation-admin-actions select { min-width: 0; min-height: 40px; padding: 8px; border: 1px solid #3a3a3c; border-radius: 8px; background: #1c1c1e; color: #fff; font-size: 12px; }
+#tab-consultation .consultation-admin-actions button { min-height: 40px; padding: 8px 12px; border-radius: 8px; background: #3182f6; color: #fff; font-size: 11px; font-weight: 700; }
+#tab-consultation button:disabled, #tab-consultation select:disabled { opacity: .4; cursor: not-allowed; }
+#tab-consultation :focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+#tab-consultation .consultation-admin-empty { padding: 24px 10px; color: #9ca3af; text-align: center; font-size: 12px; line-height: 1.7; }
